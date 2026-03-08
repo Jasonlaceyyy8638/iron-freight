@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mapbox GL (geofence UI) */
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-background text-[#F9FAFB] min-h-screen;
+  }
+}
