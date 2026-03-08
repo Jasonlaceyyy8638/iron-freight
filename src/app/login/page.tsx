@@ -22,8 +22,8 @@ const ROLES: { value: NonAdminRole; label: string }[] = [
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const inviteToken = searchParams.get('invite')
-  const inviteTypeParam = searchParams.get('type') // 'carrier' | 'broker'
+  const inviteToken = searchParams?.get('invite') ?? null
+  const inviteTypeParam = searchParams?.get('type') ?? null // 'carrier' | 'broker'
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

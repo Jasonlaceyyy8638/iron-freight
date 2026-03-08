@@ -8,13 +8,14 @@ import {
   AlertTriangle,
   FileCheck,
   UserCheck,
-  Clock,
-  ChevronRight,
   Download,
   MessageSquare,
   Loader2,
+  FileText,
 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+import { DocumentViewerModal } from '@/components/DocumentViewerModal'
+import { getSupabase } from '@/lib/supabase/client'
 
 const BG = '#0A0A0B'
 const ACCENT = '#C1FF00'
@@ -45,11 +46,7 @@ const MOCK_RED_FLAGS = [
   { id: '5', loadId: '667', msg: 'Late document upload after 24h', time: '22m ago' },
 ]
 
-const MOCK_VETTING_QUEUE = [
-  { id: 'v1', carrier: 'North Star Logistics', mc: '882941', uploaded: '1h ago' },
-  { id: 'v2', carrier: 'Swift Haul Co', mc: '901223', uploaded: '2h ago' },
-  { id: 'v3', carrier: 'Elite Freight LLC', mc: '774552', uploaded: '3h ago' },
-]
+type VettingCarrier = { id: string; legal_name: string; mc_number: string }
 
 const MOCK_TIMELINE = [
   { time: 'Mar 5, 08:00', text: 'Load Awarded to Carrier Titan Logistics (MC# 882941).' },
@@ -66,12 +63,33 @@ export default function AdminSupportPage() {
   const [staffHubLoadId, setStaffHubLoadId] = useState('')
   const [staffHubNotes, setStaffHubNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState<{ loadId: string; text: string; at: string }[]>([])
+  const [vettingCarriers, setVettingCarriers] = useState<VettingCarrier[]>([])
+  const [vettingLoading, setVettingLoading] = useState(true)
+  const [documentViewerCarrier, setDocumentViewerCarrier] = useState<{ id: string; name: string } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const supabase = getSupabase()
+    if (!supabase) {
+      setVettingLoading(false)
+      return
+    }
+    supabase.from('carriers').select('id, legal_name, mc_number').order('legal_name').then(({ data, error }) => {
+      if (cancelled) return
+      if (!error) setVettingCarriers(data ?? [])
+      setVettingLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const handleVerify = (id: string) => {
     console.log('Verify', id)
   }
   const handleReject = (id: string) => {
     console.log('Reject', id)
+  }
+  const openDocumentViewer = (c: VettingCarrier) => {
+    setDocumentViewerCarrier({ id: c.id, name: c.legal_name })
   }
 
   const handleLoadDisputeLookup = () => {
@@ -202,34 +220,60 @@ export default function AdminSupportPage() {
                     <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-white/50">
                       <th className="px-4 py-2.5 font-medium">Carrier</th>
                       <th className="px-4 py-2.5 font-medium">MC#</th>
-                      <th className="px-4 py-2.5 font-medium">Uploaded</th>
                       <th className="px-4 py-2.5 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {MOCK_VETTING_QUEUE.map((r) => (
-                      <tr key={r.id} className="text-white/80">
-                        <td className="px-4 py-2.5">{r.carrier}</td>
-                        <td className="px-4 py-2.5 font-mono">{r.mc}</td>
-                        <td className="px-4 py-2.5 text-white/50">{r.uploaded}</td>
-                        <td className="px-4 py-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleVerify(r.id)}
-                            className="mr-2 rounded border border-[#C1FF00]/40 bg-[#C1FF00]/10 px-2 py-1 text-[11px] font-medium text-[#C1FF00] hover:bg-[#C1FF00]/20"
-                          >
-                            Verify
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleReject(r.id)}
-                            className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-500/20"
-                          >
-                            Reject
-                          </button>
+                    {vettingLoading ? (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-white/50">
+                          <Loader2 className="inline h-4 w-4 animate-spin" /> Loading…
                         </td>
                       </tr>
-                    ))}
+                    ) : vettingCarriers.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-white/50">No carriers.</td>
+                      </tr>
+                    ) : (
+                      vettingCarriers.map((r) => (
+                        <tr key={r.id} className="text-white/80">
+                          <td className="px-4 py-2.5">
+                            <button
+                              type="button"
+                              onClick={() => openDocumentViewer(r)}
+                              className="inline-flex items-center gap-1.5 font-medium text-[#C1FF00] hover:underline"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              {r.legal_name}
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 font-mono">{r.mc_number}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openDocumentViewer(r)}
+                              className="mr-2 rounded border border-[#C1FF00]/40 bg-[#C1FF00]/10 px-2 py-1 text-[11px] font-medium text-[#C1FF00] hover:bg-[#C1FF00]/20"
+                            >
+                              View docs
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleVerify(r.id)}
+                              className="mr-2 rounded border border-[#C1FF00]/40 bg-[#C1FF00]/10 px-2 py-1 text-[11px] font-medium text-[#C1FF00] hover:bg-[#C1FF00]/20"
+                            >
+                              Verify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReject(r.id)}
+                              className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-500/20"
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -334,6 +378,14 @@ export default function AdminSupportPage() {
           </div>
         </div>
       </aside>
+
+      {documentViewerCarrier && (
+        <DocumentViewerModal
+          carrierId={documentViewerCarrier.id}
+          carrierName={documentViewerCarrier.name}
+          onClose={() => setDocumentViewerCarrier(null)}
+        />
+      )}
     </div>
   )
 }

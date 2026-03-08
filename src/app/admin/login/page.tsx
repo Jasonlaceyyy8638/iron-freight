@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signIn, signUp } from '@/lib/auth'
@@ -8,10 +8,10 @@ import { getSupabase } from '@/lib/supabase/client'
 import { Logo } from '@/components/Logo'
 import { Eye, EyeOff } from 'lucide-react'
 
-export default function AdminLoginPage() {
+function AdminLoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const inviteToken = searchParams.get('invite')
+  const inviteToken = searchParams?.get('invite') ?? null
   const [mode, setMode] = useState<'signin' | 'signup'>('signup')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -59,9 +59,9 @@ export default function AdminLoginPage() {
         router.push('/admin')
       }
     } catch (err: unknown) {
-      const message =
-        (err && typeof err === 'object' && 'message' in err && String((err as { message: unknown }).message)) ||
+      const message: string | null =
         (err instanceof Error ? err.message : null) ||
+        (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : null) ||
         (mode === 'signup' ? 'Sign up failed' : 'Sign in failed')
       setError(message)
     } finally {
@@ -200,5 +200,17 @@ export default function AdminLoginPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <AdminLoginContent />
+    </Suspense>
   )
 }

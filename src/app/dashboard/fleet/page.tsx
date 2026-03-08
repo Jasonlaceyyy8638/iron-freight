@@ -1,15 +1,35 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { userAtom } from '@/lib/store'
 import { getSupabase } from '@/lib/supabase/client'
+import { compressImageForUpload } from '@/lib/image-compression'
+import { Upload, Loader2 } from 'lucide-react'
+
+function CDLViewLink({ path }: { path: string }) {
+  const [href, setHref] = useState<string | null>(null)
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    supabase.storage.from('documents').createSignedUrl(path, 3600).then(({ data }) => {
+      if (data?.signedUrl) setHref(data.signedUrl)
+    })
+  }, [path])
+  if (!href) return <span className="text-xs text-iron-500">…</span>
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-[#C1FF00] hover:underline">
+      View
+    </a>
+  )
+}
 
 interface DriverRow {
   id: string
   full_name: string
   cdl_number: string
   cdl_verified_at: string | null
+  cdl_image_url: string | null
 }
 
 export default function FleetPage() {
@@ -22,6 +42,9 @@ export default function FleetPage() {
   const [inviteName, setInviteName] = useState('')
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const [uploadingDriverId, setUploadingDriverId] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const cdlInputRef = useRef<HTMLInputElement>(null)
   const isCarrier = user?.role === 'carrier'
 
   useEffect(() => {
@@ -53,7 +76,7 @@ export default function FleetPage() {
       setCarrierId(carrier.id)
       const { data, error: e } = await supabase
         .from('drivers')
-        .select('id, full_name, cdl_number, cdl_verified_at')
+        .select('id, full_name, cdl_number, cdl_verified_at, cdl_image_url')
         .eq('carrier_id', carrier.id)
         .order('full_name')
       if (cancelled) return
@@ -150,6 +173,7 @@ export default function FleetPage() {
             {inviteSuccess && <p className="mt-2 text-sm text-[#C1FF00]">{inviteSuccess}</p>}
           </div>
 
+          {uploadError && <p className="mb-4 text-sm text-red-300">{uploadError}</p>}
           <div className="overflow-x-auto rounded-xl border border-iron-700">
             <table className="min-w-full divide-y divide-iron-700">
               <thead>
@@ -157,18 +181,61 @@ export default function FleetPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">Driver</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">CDL</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">Verified</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">CDL doc</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-iron-800">
                 {loading ? (
-                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-iron-400">Loading…</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-iron-400">Loading…</td></tr>
                 ) : drivers.length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-iron-400">No drivers yet.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-iron-400">No drivers yet.</td></tr>
                 ) : drivers.map((d) => (
                   <tr key={d.id} className="hover:bg-iron-800/50">
                     <td className="px-4 py-3 text-sm font-medium text-iron-200">{d.full_name}</td>
                     <td className="px-4 py-3 text-sm text-iron-400">***{d.cdl_number.slice(-4)}</td>
                     <td className="px-4 py-3 text-sm text-green-400">{d.cdl_verified_at ? 'Yes' : '—'}</td>
+                    <td className="px-4 py-3">
+                      {uploadingDriverId === d.id ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-iron-400">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                        </span>
+                      ) : d.cdl_image_url ? (
+                        <CDLViewLink path={d.cdl_image_url} />
+                      ) : (
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-[#C1FF00] hover:underline">
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>Upload CDL</span>
+                          <input
+                            ref={cdlInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              e.target.value = ''
+                              const supabase = getSupabase()
+                              if (!file || !supabase) return
+                              setUploadError(null)
+                              setUploadingDriverId(d.id)
+                              try {
+                                const compressed = await compressImageForUpload(file)
+                                const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+                                const path = `cdl/${d.id}/${crypto.randomUUID()}.${ext === 'png' || ext === 'webp' ? ext : 'jpg'}`
+                                const { error: upErr } = await supabase.storage.from('documents').upload(path, compressed, { upsert: true })
+                                if (upErr) throw upErr
+                                const { error: dbErr } = await supabase.from('drivers').update({ cdl_image_url: path }).eq('id', d.id)
+                                if (dbErr) throw dbErr
+                                setDrivers((prev) => prev.map((dr) => (dr.id === d.id ? { ...dr, cdl_image_url: path } : dr)))
+                              } catch (err) {
+                                setUploadError(err instanceof Error ? err.message : 'Upload failed')
+                              } finally {
+                                setUploadingDriverId(null)
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

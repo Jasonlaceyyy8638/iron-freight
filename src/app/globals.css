@@ -13,3 +13,30 @@
     @apply bg-background text-[#F9FAFB] min-h-screen;
   }
 }
+
+/* VerificationLoader: scan line and pulse */
+@keyframes verification-scan {
+  0%, 100% { top: 10%; }
+  50% { top: 90%; }
+}
+@keyframes verification-pulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.9;
+    box-shadow: 0 0 20px #C1FF00, inset 0 0 10px #C1FF00;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.4;
+    box-shadow: 0 0 40px #C1FF00, inset 0 0 20px rgba(193, 255, 0, 0.3);
+  }
+}
+@keyframes verification-success-check {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes verification-slide-up {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-100%); opacity: 0.95; }
+}

@@ -54,8 +54,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, message: 'Quote email sent' })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to send quote email'
+    const rawMessage = err instanceof Error ? err.message : 'Failed to send quote email'
     console.error('Send quote error:', err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // SendGrid 403 = usually sender not verified (billing@getironfreight.com must be verified in SendGrid)
+    if (rawMessage.toLowerCase().includes('forbidden') || (err as { code?: number })?.code === 403) {
+      console.error('Hint: Verify the sender email (billing@getironfreight.com) in SendGrid Single Sender Verification or Domain Authentication.')
+    }
+    // Don't expose raw provider errors to the client
+    return NextResponse.json(
+      { error: 'We couldn’t send the quote email right now. Please try again later or contact support.' },
+      { status: 500 }
+    )
   }
 }

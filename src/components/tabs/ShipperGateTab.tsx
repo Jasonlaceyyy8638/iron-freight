@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Radio,
@@ -10,11 +11,29 @@ import {
   AlertTriangle,
   ScanQrCode,
 } from 'lucide-react'
+import { CameraAccess } from '@/components/CameraAccess'
 
 const GeofenceMap = dynamic(
   () => import('@/components/GeofenceMap').then((mod) => ({ default: mod.GeofenceMap })),
   { ssr: false }
 )
+
+function ScannerVideo({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream
+  }, [stream])
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className="h-full w-full object-cover"
+      style={{ transform: 'scaleX(-1)' }}
+    />
+  )
+}
 
 export function ShipperGateTab() {
   return (
@@ -32,42 +51,55 @@ export function ShipperGateTab() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-6 px-6 py-6">
-        {/* Load card */}
-        <div className="rounded border border-divider bg-surface p-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-display text-title-md font-bold text-[#F9FAFB]">LOAD #IF-99281</p>
-              <p className="text-body-sm text-[#A3A3A3]">Status: Pending Verification</p>
-            </div>
-            <span className="rounded bg-success/22 px-2 py-1 text-label-sm font-bold text-success">SECURE</span>
-          </div>
-          {/* Geofence map: dock 140m radius, driver inside */}
-          <div className="mt-4">
-            <p className="text-label-sm text-[#A3A3A3]">Dock geofence (140m) – driver position</p>
-            <GeofenceMap
-              center={[33.9416, -118.4085]}
-              zoom={15}
-              circles={[{ lat: 33.9416, lng: -118.4085, radiusMeters: 140, label: 'Dock geofence (140m)' }]}
-              markers={[
-                { lat: 33.9416, lng: -118.4085, label: 'Dock', color: '#C1FF00' },
-                { lat: 33.9422, lng: -118.4078, label: 'Driver (within 140m)', color: '#22C55E' },
-              ]}
-              height="200px"
-              className="mt-2"
-            />
-          </div>
-          {/* Scan frame */}
-          <div className="mt-4 flex h-[200px] items-center justify-center rounded border-2 border-[#333] bg-black">
-            <div className="flex h-[160px] w-[160px] flex-col items-center justify-center rounded-xl border-2 border-primary">
-              <span className="text-label-lg font-bold text-primary">Scan frame</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center justify-center gap-2 rounded bg-black/80 py-2 border border-success">
-            <MapPin className="h-4 w-4 text-success" />
-            <span className="font-display text-label-lg font-bold text-success">DRIVER WITHIN 140m</span>
-          </div>
-        </div>
+      <CameraAccess facingMode="environment">
+        {({ stream, requestAccess, stopStream }) => (
+            <div className="flex flex-col gap-6 px-6 py-6">
+              {/* Load card */}
+              <div className="rounded border border-divider bg-surface p-6 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-display text-title-md font-bold text-[#F9FAFB]">LOAD #IF-99281</p>
+                    <p className="text-body-sm text-[#A3A3A3]">Status: Pending Verification</p>
+                  </div>
+                  <span className="rounded bg-success/22 px-2 py-1 text-label-sm font-bold text-success">SECURE</span>
+                </div>
+                {/* Geofence map: dock 140m radius, driver inside */}
+                <div className="mt-4">
+                  <p className="text-label-sm text-[#A3A3A3]">Dock geofence (140m) – driver position</p>
+                  <GeofenceMap
+                    center={[33.9416, -118.4085]}
+                    zoom={15}
+                    circles={[{ lat: 33.9416, lng: -118.4085, radiusMeters: 140, label: 'Dock geofence (140m)' }]}
+                    markers={[
+                      { lat: 33.9416, lng: -118.4085, label: 'Dock', color: '#C1FF00' },
+                      { lat: 33.9422, lng: -118.4078, label: 'Driver (within 140m)', color: '#22C55E' },
+                    ]}
+                    height="200px"
+                    className="mt-2"
+                  />
+                </div>
+                {/* Scan frame – back camera (environment) for QR scanning */}
+                <div className="mt-4 flex h-[200px] items-center justify-center overflow-hidden rounded border-2 border-[#333] bg-black">
+                  {stream ? (
+                    <div className="relative h-full w-full">
+                      <ScannerVideo stream={stream} />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="flex h-[160px] w-[160px] flex-col items-center justify-center rounded-xl border-2 border-[#C1FF00] bg-transparent">
+                          <span className="text-label-lg font-bold text-[#C1FF00]">Scan frame</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex h-[160px] w-[160px] flex-col items-center justify-center rounded-xl border-2 border-primary">
+                      <span className="text-label-lg font-bold text-primary">Scan frame</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center justify-center gap-2 rounded bg-black/80 py-2 border border-success">
+                  <MapPin className="h-4 w-4 text-success" />
+                  <span className="font-display text-label-lg font-bold text-success">DRIVER WITHIN 140m</span>
+                </div>
+              </div>
 
         {/* Expected carrier identity */}
         <div>
@@ -109,16 +141,21 @@ export function ShipperGateTab() {
           </button>
           <button
             type="button"
+            onClick={() => (stream ? stopStream() : requestAccess())}
             className="flex h-16 w-full items-center justify-center gap-4 rounded bg-primary shadow-md"
           >
             <ScanQrCode className="h-6 w-6 text-black" />
-            <span className="font-display text-title-md font-extrabold text-black">SCAN IRON_GATE CODE</span>
+            <span className="font-display text-title-md font-extrabold text-black">
+              {stream ? 'STOP CAMERA' : 'SCAN IRON_GATE CODE'}
+            </span>
           </button>
           <p className="text-center text-label-sm text-hint font-mono">
             SECURED BY IRONFREIGHT IDENTITY PROTECTION
           </p>
         </div>
-      </div>
+            </div>
+        )}
+      </CameraAccess>
     </div>
   )
 }

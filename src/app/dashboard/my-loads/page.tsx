@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { userAtom } from '@/lib/store'
 import { getSupabase } from '@/lib/supabase/client'
+import { compressImageForUpload } from '@/lib/image-compression'
+import { Upload, Loader2 } from 'lucide-react'
 
 interface MyLoadRow {
   id: string
@@ -11,10 +13,28 @@ interface MyLoadRow {
   status: string
   origin: string
   destination: string
+  bol_image_url: string | null
 }
 
 function formatLoc(city: string | null, state: string | null) {
   return [city, state].filter(Boolean).join(', ') || '—'
+}
+
+function BOLViewLink({ path }: { path: string }) {
+  const [href, setHref] = useState<string | null>(null)
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    supabase.storage.from('documents').createSignedUrl(path, 3600).then(({ data }) => {
+      if (data?.signedUrl) setHref(data.signedUrl)
+    })
+  }, [path])
+  if (!href) return <span className="text-xs text-iron-500">…</span>
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-[#C1FF00] hover:underline">
+      View BOL
+    </a>
+  )
 }
 
 export default function MyLoadsPage() {
@@ -27,8 +47,12 @@ export default function MyLoadsPage() {
   const [inviteName, setInviteName] = useState('')
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const [uploadingLoadId, setUploadingLoadId] = useState<string | null>(null)
+  const [bolUploadError, setBolUploadError] = useState<string | null>(null)
+  const bolInputRef = useRef<HTMLInputElement>(null)
   const isBroker = user?.role === 'broker'
   const isCarrier = user?.role === 'carrier'
+  const canUploadBOL = isBroker || isCarrier
 
   useEffect(() => {
     const userId = user?.id
@@ -51,7 +75,7 @@ export default function MyLoadsPage() {
       if (isBroker) {
         const { data, error: e } = await supabase
           .from('loads')
-          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state')
+          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url')
           .eq('broker_profile_id', userId)
           .order('created_at', { ascending: false })
         if (cancelled) return
@@ -62,6 +86,7 @@ export default function MyLoadsPage() {
           status: r.status,
           origin: formatLoc(r.origin_city, r.origin_state),
           destination: formatLoc(r.dest_city, r.dest_state),
+          bol_image_url: r.bol_image_url ?? null,
         })))
       } else if (isCarrier) {
         const { data: carrier } = await supabase.from('carriers').select('id').eq('profile_id', userId).single()
@@ -72,7 +97,7 @@ export default function MyLoadsPage() {
         }
         const { data, error: e } = await supabase
           .from('loads')
-          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state')
+          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url')
           .eq('carrier_id', carrier.id)
           .order('created_at', { ascending: false })
         if (cancelled) return
@@ -83,6 +108,7 @@ export default function MyLoadsPage() {
           status: r.status,
           origin: formatLoc(r.origin_city, r.origin_state),
           destination: formatLoc(r.dest_city, r.dest_state),
+          bol_image_url: r.bol_image_url ?? null,
         })))
       } else {
         const { data: driver } = await supabase.from('drivers').select('id').eq('profile_id', userId).single()
@@ -93,7 +119,7 @@ export default function MyLoadsPage() {
         }
         const { data, error: e } = await supabase
           .from('loads')
-          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state')
+          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url')
           .eq('driver_id', driver.id)
           .order('created_at', { ascending: false })
         if (cancelled) return
@@ -104,6 +130,7 @@ export default function MyLoadsPage() {
           status: r.status,
           origin: formatLoc(r.origin_city, r.origin_state),
           destination: formatLoc(r.dest_city, r.dest_state),
+          bol_image_url: r.bol_image_url ?? null,
         })))
       }
       setLoading(false)
@@ -234,6 +261,7 @@ export default function MyLoadsPage() {
         </>
       )}
 
+      {bolUploadError && <p className="mb-4 text-sm text-red-300">{bolUploadError}</p>}
       <div className="overflow-x-auto rounded-xl border border-iron-700">
         <table className="min-w-full divide-y divide-iron-700">
           <thead>
@@ -243,15 +271,16 @@ export default function MyLoadsPage() {
               {isBroker && <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">Bids</th>}
               {isBroker && <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">Winner</th>}
               {isCarrier && <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">Action</th>}
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-iron-400">BOL</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-iron-800">
             {loading ? (
-              <tr><td colSpan={isBroker ? 4 : isCarrier ? 3 : 2} className="px-4 py-8 text-center text-sm text-iron-400">Loading…</td></tr>
+              <tr><td colSpan={isBroker ? 5 : isCarrier ? 4 : 3} className="px-4 py-8 text-center text-sm text-iron-400">Loading…</td></tr>
             ) : error ? (
-              <tr><td colSpan={isBroker ? 4 : isCarrier ? 3 : 2} className="px-4 py-4 text-sm text-red-300">{error}</td></tr>
+              <tr><td colSpan={isBroker ? 5 : isCarrier ? 4 : 3} className="px-4 py-4 text-sm text-red-300">{error}</td></tr>
             ) : loads.length === 0 ? (
-              <tr><td colSpan={isBroker ? 4 : isCarrier ? 3 : 2} className="px-4 py-8 text-center text-sm text-iron-400">No loads.</td></tr>
+              <tr><td colSpan={isBroker ? 5 : isCarrier ? 4 : 3} className="px-4 py-8 text-center text-sm text-iron-400">No loads.</td></tr>
             ) : loads.map((load) => (
               <tr key={load.id} className="hover:bg-iron-800/50">
                 <td className="px-4 py-3 text-sm font-medium text-iron-200">{load.origin} → {load.destination}</td>
@@ -267,6 +296,50 @@ export default function MyLoadsPage() {
                     </select>
                   </td>
                 )}
+                <td className="px-4 py-3">
+                  {uploadingLoadId === load.id ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-iron-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                    </span>
+                  ) : load.bol_image_url ? (
+                    <BOLViewLink path={load.bol_image_url} />
+                  ) : canUploadBOL ? (
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-[#C1FF00] hover:underline">
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Upload BOL</span>
+                      <input
+                        ref={bolInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          e.target.value = ''
+                          const supabase = getSupabase()
+                          if (!file || !supabase) return
+                          setBolUploadError(null)
+                          setUploadingLoadId(load.id)
+                          try {
+                            const compressed = await compressImageForUpload(file)
+                            const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+                            const path = `bol/${load.id}/${crypto.randomUUID()}.${ext === 'png' || ext === 'webp' ? ext : 'jpg'}`
+                            const { error: upErr } = await supabase.storage.from('documents').upload(path, compressed, { upsert: true })
+                            if (upErr) throw upErr
+                            const { error: dbErr } = await supabase.from('loads').update({ bol_image_url: path }).eq('id', load.id)
+                            if (dbErr) throw dbErr
+                            setLoads((prev) => prev.map((l) => (l.id === load.id ? { ...l, bol_image_url: path } : l)))
+                          } catch (err) {
+                            setBolUploadError(err instanceof Error ? err.message : 'Upload failed')
+                          } finally {
+                            setUploadingLoadId(null)
+                          }
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <span className="text-xs text-iron-500">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

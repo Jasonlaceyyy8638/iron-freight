@@ -59,28 +59,35 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">5. Chain of Custody Data Retention</h2>
+            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">5. IronVault & Secure Document Upload</h2>
+            <p className="text-white/90">
+              Images uploaded to the IronVault are encrypted at rest. CDL and Biometric images are never stored on the user&apos;s local device gallery; they are streamed directly to our secure servers.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">6. Chain of Custody Data Retention</h2>
             <p className="text-white/90">
               Biometric hashes associated with a specific load are purged ninety (90) days after delivery of that load, unless a dispute or investigation is filed, in which case we may retain the data as necessary for the resolution of the dispute or as required by law. Encrypted GPS logs and other chain-of-custody records may be retained for a longer period as needed for compliance, audit, and legal hold. Retention schedules are designed to support freight security and regulatory requirements while minimizing data retention where no longer necessary.
             </p>
           </section>
 
           <section>
-            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">6. Purpose of Processing & Third-Party Disclosure</h2>
+            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">7. Purpose of Processing & Third-Party Disclosure</h2>
             <p className="text-white/90">
               Data is processed solely for <strong className="text-white">Chain of Custody Verification</strong> and <strong className="text-white">Fraud Prevention</strong>. Data is only shared with the specific Broker and Shipper bound to the active Load ID to ensure freight security. We do not sell your data. We may share data with service providers who process it on our behalf under strict contractual obligations, and with law enforcement or regulators when required by law or to protect the safety and integrity of the Platform.
             </p>
           </section>
 
           <section>
-            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">7. Your Rights</h2>
+            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">8. Your Rights</h2>
             <p className="text-white/90">
               Depending on your jurisdiction, you may have rights to access, correct, delete, or restrict processing of your personal data. To exercise these rights or to ask questions about this policy, contact us via the Support Center in the footer. Biometric data may be subject to additional legal requirements; we will respond in accordance with applicable law.
             </p>
           </section>
 
           <section>
-            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">8. Updates</h2>
+            <h2 className="text-[#C1FF00] font-semibold uppercase tracking-wider text-xs mb-3">9. Updates</h2>
             <p className="text-white/90">
               We may update this Privacy Policy from time to time; the “Last updated” date reflects the most recent version. Continued use of the Platform after changes constitutes acceptance of the updated policy.
             </p>
