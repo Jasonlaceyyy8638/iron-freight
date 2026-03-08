@@ -1,5 +1,7 @@
 [build]
   command = "npm run build"
+  # Do not set publish to repo root in Netlify UI — plugin uses .next output
+  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
