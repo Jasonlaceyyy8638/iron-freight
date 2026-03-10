@@ -13,12 +13,20 @@ function hasActiveSubscription(status: string | null | undefined): boolean {
   return status === 'active' || status === 'trialing'
 }
 
-const TABS = [
+const ALL_TABS = [
   { id: 'load-board', label: 'Load Board' },
   { id: 'my-loads', label: 'My Loads' },
   { id: 'fleet', label: 'Fleet' },
+  { id: 'gate', label: 'Gate' },
   { id: 'verification', label: 'Verification' },
 ] as const
+
+function getTabs(role: string | undefined) {
+  if (role === 'broker' || role === 'shipper') {
+    return ALL_TABS
+  }
+  return ALL_TABS.filter((t) => t.id !== 'gate')
+}
 
 export default function DashboardLayout({
   children,
@@ -28,6 +36,7 @@ export default function DashboardLayout({
   const user = useAtomValue(userAtom)
   const authReady = useAtomValue(authReadyAtom)
   const currentTab = pathname?.split('/').pop() || 'load-board'
+  const TABS = getTabs(user?.role)
 
   useEffect(() => {
     if (!authReady) return

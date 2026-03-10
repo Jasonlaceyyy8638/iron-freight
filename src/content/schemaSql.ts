@@ -135,7 +135,7 @@ CREATE INDEX idx_loads_load_number ON public.loads(load_number);
 CREATE TABLE IF NOT EXISTS public.qr_tokens (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   load_id UUID NOT NULL REFERENCES public.loads(id) ON DELETE CASCADE,
-  token_type TEXT NOT NULL CHECK (token_type IN ('pickup', 'delivery')),
+  token_type TEXT NOT NULL CHECK (token_type IN ('pickup', 'delivery', 'gate')),
   token_hash TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
   used_at TIMESTAMPTZ,
