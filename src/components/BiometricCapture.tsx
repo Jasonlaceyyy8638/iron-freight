@@ -164,11 +164,27 @@ export function BiometricCapture({
     [loadId, driverId, onCancel]
   )
 
-  const handleVerificationComplete = useCallback(() => {
+  const handleVerificationComplete = useCallback(async () => {
     if (verificationImageUrl) URL.revokeObjectURL(verificationImageUrl)
     setVerificationImageUrl(null)
+    const supabase = getSupabase()
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (token) {
+        try {
+          await fetch('/api/send-verification-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ loadId }),
+          })
+        } catch {
+          // Non-blocking: broker email is best-effort
+        }
+      }
+    }
     onSuccess()
-  }, [verificationImageUrl, onSuccess])
+  }, [verificationImageUrl, loadId, onSuccess])
 
   if (verificationImageUrl) {
     return (

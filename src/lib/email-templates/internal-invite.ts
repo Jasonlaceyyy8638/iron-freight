@@ -15,11 +15,14 @@ const ROLE_COPY: Record<string, string> = {
 
 export const INTERNAL_INVITE_SUBJECT = 'Action Required: Your IronFreight Internal Access Credentials'
 
-export function buildInternalInviteEmail(params: {
-  recipientName: string | null
-  role: 'billing' | 'admin' | 'support'
-  inviteUrl: string
-}): { subject: string; html: string; text: string } {
+export function buildInternalInviteEmail(
+  params: {
+    recipientName: string | null
+    role: 'billing' | 'admin' | 'support'
+    inviteUrl: string
+  },
+  options?: { logoSrc?: string }
+): { subject: string; html: string; text: string } {
   const { recipientName, role, inviteUrl } = params
   const greeting = recipientName ? `Hi ${recipientName},` : 'Hi,'
   const roleCopy = ROLE_COPY[role] ?? ROLE_COPY.support
@@ -36,6 +39,7 @@ export function buildInternalInviteEmail(params: {
     bodyHtml,
     ctaLabel: 'Set Up Internal Account',
     ctaUrl: inviteUrl,
+    logoSrc: options?.logoSrc,
   })
 
   const text = [

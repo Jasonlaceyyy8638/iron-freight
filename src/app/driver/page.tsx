@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAtomValue } from 'jotai'
 import { userAtom, authReadyAtom } from '@/lib/store'
@@ -8,6 +8,34 @@ import { signOut } from '@/lib/auth'
 import { getSupabase } from '@/lib/supabase/client'
 import { Logo } from '@/components/Logo'
 import Link from 'next/link'
+
+const LOCATION_REPORT_INTERVAL_MS = 20_000
+
+// Throttle: only send to API at most every 20s (watchPosition can fire more often)
+function useThrottledReport(loadId: string | undefined) {
+  const lastSentRef = useRef<number>(0)
+  const supabase = getSupabase()
+
+  const sendIfAllowed = useCallback(
+    (latitude: number, longitude: number) => {
+      if (!loadId || !supabase) return
+      const now = Date.now()
+      if (now - lastSentRef.current < LOCATION_REPORT_INTERVAL_MS) return
+      lastSentRef.current = now
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const token = session?.access_token
+        if (!token) return
+        fetch('/api/driver-location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ load_id: loadId, latitude, longitude }),
+        }).catch(() => {})
+      })
+    },
+    [loadId, supabase]
+  )
+  return sendIfAllowed
+}
 
 function formatAddress(addr: string | null, city: string | null, state: string | null, zip: string | null): string {
   const parts = [addr, city, state, zip].filter(Boolean)
@@ -33,6 +61,10 @@ export default function DriverIronGatePage() {
     delivery_appointment: string
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [locationSharing, setLocationSharing] = useState(false)
+  const watchIdRef = useRef<number | null>(null)
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null)
+  const sendPosition = useThrottledReport(load?.id)
 
   useEffect(() => {
     if (authReady && !user) router.replace('/login')
@@ -79,6 +111,71 @@ export default function DriverIronGatePage() {
     fetchAssignedLoad()
     return () => { cancelled = true }
   }, [user?.id])
+
+  // Continuous location: watchPosition so the browser can keep delivering updates
+  // (e.g. when app is in foreground or, on some devices, in background). Throttle API to every 20s.
+  useEffect(() => {
+    if (!load?.id) {
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
+      setLocationSharing(false)
+      return
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setLocationSharing(true)
+        sendPosition(position.coords.latitude, position.coords.longitude)
+      },
+      () => setLocationSharing(false),
+      { enableHighAccuracy: true, maximumAge: 30_000, timeout: 15_000 }
+    )
+    watchIdRef.current = watchId
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+      watchIdRef.current = null
+      setLocationSharing(false)
+    }
+  }, [load?.id, sendPosition])
+
+  // Screen Wake Lock: keep device from sleeping while app is visible and driver has a load,
+  // so location updates keep firing. Released when tab is hidden or load is cleared.
+  useEffect(() => {
+    if (!load?.id || typeof document === 'undefined') return
+
+    const requestWakeLock = async () => {
+      if (!('wakeLock' in navigator)) return
+      try {
+        const wl = await (navigator as unknown as { wakeLock: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock.request('screen')
+        wakeLockRef.current = wl
+        wl.addEventListener?.('release', () => { wakeLockRef.current = null })
+      } catch {
+        wakeLockRef.current = null
+      }
+    }
+
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {})
+        wakeLockRef.current = null
+      }
+    }
+
+    if (document.visibilityState === 'visible') requestWakeLock()
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') requestWakeLock()
+      else releaseWakeLock()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      releaseWakeLock()
+    }
+  }, [load?.id])
 
   if (authReady && !user) return null
 
@@ -127,6 +224,10 @@ export default function DriverIronGatePage() {
               </div>
             </div>
 
+            <p className="mt-4 text-center text-xs text-iron-400">
+              {locationSharing ? 'Sharing your location with the broker.' : 'Requesting location…'}
+            </p>
+            <p className="mt-1 text-center text-xs text-iron-500">Keep this app open (or in background) so tracking stays active.</p>
             <div className="mt-8">
               <Link
                 href={`/driver/${load.id}/qr`}

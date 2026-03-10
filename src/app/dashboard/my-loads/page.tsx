@@ -1,11 +1,18 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { useAtomValue } from 'jotai'
 import { userAtom } from '@/lib/store'
 import { getSupabase } from '@/lib/supabase/client'
 import { compressImageForUpload } from '@/lib/image-compression'
-import { Upload, Loader2 } from 'lucide-react'
+import { Upload, Loader2, MapPin, X } from 'lucide-react'
+import type { GeofenceCircle, GeofenceMarker } from '@/components/GeofenceMap'
+
+const GeofenceMap = dynamic(
+  () => import('@/components/GeofenceMap').then((mod) => ({ default: mod.GeofenceMap })),
+  { ssr: false }
+)
 
 interface MyLoadRow {
   id: string
@@ -14,6 +21,14 @@ interface MyLoadRow {
   origin: string
   destination: string
   bol_image_url: string | null
+  driver_id?: string | null
+  driver_name?: string | null
+  origin_geofence_lat?: number | null
+  origin_geofence_lng?: number | null
+  origin_geofence_radius_meters?: number | null
+  dest_geofence_lat?: number | null
+  dest_geofence_lng?: number | null
+  dest_geofence_radius_meters?: number | null
 }
 
 function formatLoc(city: string | null, state: string | null) {
@@ -37,6 +52,104 @@ function BOLViewLink({ path }: { path: string }) {
   )
 }
 
+const DISPATCHED_STATUSES = ['assigned', 'in_transit', 'pickup_verified', 'delivery_verified']
+
+function TrackDriverMap({
+  load,
+  onClose,
+}: {
+  load: MyLoadRow
+  onClose: () => void
+}) {
+  const [driverLoc, setDriverLoc] = useState<{ lat: number; lng: number } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = getSupabase()
+
+  useEffect(() => {
+    if (!supabase || !load.id) return
+    let cancelled = false
+    async function poll() {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token || cancelled) return
+      const res = await fetch(`/api/driver-location?load_id=${encodeURIComponent(load.id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (cancelled) return
+      const data = await res.json().catch(() => ({}))
+      if (data.latitude != null && data.longitude != null) {
+        setDriverLoc({ lat: data.latitude, lng: data.longitude })
+      }
+      setLoading(false)
+    }
+    poll()
+    const interval = setInterval(poll, 15_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [supabase, load.id])
+
+  const circles: GeofenceCircle[] = []
+  if (load.origin_geofence_lat != null && load.origin_geofence_lng != null) {
+    circles.push({
+      lat: Number(load.origin_geofence_lat),
+      lng: Number(load.origin_geofence_lng),
+      radiusMeters: load.origin_geofence_radius_meters ?? 500,
+      label: 'Pickup',
+    })
+  }
+  if (load.dest_geofence_lat != null && load.dest_geofence_lng != null) {
+    circles.push({
+      lat: Number(load.dest_geofence_lat),
+      lng: Number(load.dest_geofence_lng),
+      radiusMeters: load.dest_geofence_radius_meters ?? 500,
+      label: 'Delivery',
+    })
+  }
+  const markers: GeofenceMarker[] = []
+  if (driverLoc) {
+    markers.push({
+      lat: driverLoc.lat,
+      lng: driverLoc.lng,
+      label: load.driver_name ? `Driver: ${load.driver_name}` : 'Driver',
+      color: '#3B82F6',
+    })
+  }
+  const center: [number, number] =
+    driverLoc
+      ? [driverLoc.lat, driverLoc.lng]
+      : circles.length
+        ? [circles[0].lat, circles[0].lng]
+        : [39.5, -98.5]
+
+  return (
+    <div className="rounded-lg border border-iron-700 bg-iron-900/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-sm font-medium text-iron-200">
+          Live location for load {load.load_number}
+          {load.driver_name && ` — ${load.driver_name}`}
+        </span>
+        <button type="button" onClick={onClose} className="rounded p-1 text-iron-400 hover:bg-iron-800 hover:text-iron-200">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {loading && !driverLoc ? (
+        <p className="py-8 text-center text-sm text-iron-400">Waiting for driver location… (driver must have the load open on their device)</p>
+      ) : (
+        <GeofenceMap
+          center={center}
+          zoom={circles.length + markers.length > 1 ? undefined : 10}
+          circles={circles}
+          markers={markers}
+          height="280px"
+          className="w-full"
+        />
+      )}
+    </div>
+  )
+}
+
 export default function MyLoadsPage() {
   const user = useAtomValue(userAtom)
   const [showPostModal, setShowPostModal] = useState(false)
@@ -49,6 +162,10 @@ export default function MyLoadsPage() {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const [uploadingLoadId, setUploadingLoadId] = useState<string | null>(null)
   const [bolUploadError, setBolUploadError] = useState<string | null>(null)
+  const [trackLoadNumberInput, setTrackLoadNumberInput] = useState('')
+  const [trackLoad, setTrackLoad] = useState<MyLoadRow | null>(null)
+  const [trackLoadError, setTrackLoadError] = useState<string | null>(null)
+  const [trackLoadSearching, setTrackLoadSearching] = useState(false)
   const bolInputRef = useRef<HTMLInputElement>(null)
   const isBroker = user?.role === 'broker'
   const isCarrier = user?.role === 'carrier'
@@ -75,18 +192,31 @@ export default function MyLoadsPage() {
       if (isBroker) {
         const { data, error: e } = await supabase
           .from('loads')
-          .select('id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url')
+          .select(`
+            id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url,
+            driver_id, origin_geofence_lat, origin_geofence_lng, origin_geofence_radius_meters,
+            dest_geofence_lat, dest_geofence_lng, dest_geofence_radius_meters,
+            drivers(full_name)
+          `)
           .eq('broker_profile_id', userId)
           .order('created_at', { ascending: false })
         if (cancelled) return
         if (e) setError(e.message)
-        else setLoads((data ?? []).map((r) => ({
-          id: r.id,
-          load_number: r.load_number,
-          status: r.status,
-          origin: formatLoc(r.origin_city, r.origin_state),
-          destination: formatLoc(r.dest_city, r.dest_state),
-          bol_image_url: r.bol_image_url ?? null,
+        else setLoads((data ?? []).map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          load_number: r.load_number as string,
+          status: r.status as string,
+          origin: formatLoc(r.origin_city as string | null, r.origin_state as string | null),
+          destination: formatLoc(r.dest_city as string | null, r.dest_state as string | null),
+          bol_image_url: (r.bol_image_url as string | null) ?? null,
+          driver_id: r.driver_id as string | null ?? null,
+          driver_name: (r.drivers as { full_name?: string } | null)?.full_name ?? null,
+          origin_geofence_lat: r.origin_geofence_lat as number | null ?? null,
+          origin_geofence_lng: r.origin_geofence_lng as number | null ?? null,
+          origin_geofence_radius_meters: r.origin_geofence_radius_meters as number | null ?? null,
+          dest_geofence_lat: r.dest_geofence_lat as number | null ?? null,
+          dest_geofence_lng: r.dest_geofence_lng as number | null ?? null,
+          dest_geofence_radius_meters: r.dest_geofence_radius_meters as number | null ?? null,
         })))
       } else if (isCarrier) {
         const { data: carrier } = await supabase.from('carriers').select('id').eq('profile_id', userId).single()
@@ -259,6 +389,98 @@ export default function MyLoadsPage() {
             <p className="mt-2 text-xs text-iron-500">Award: load moves to carrier&apos;s &quot;Assigned&quot; table (seamless handoff).</p>
           </div>
         </>
+      )}
+
+      {isBroker && (
+        <div className="mb-6 rounded-xl border border-iron-700 bg-iron-800/50 p-4">
+          <h2 className="text-sm font-semibold text-iron-200">Track driver (live map)</h2>
+          <p className="mt-1 text-xs text-iron-500">Enter your load number to see the driver&apos;s live location on the map.</p>
+          <form
+            className="mt-3 flex flex-wrap items-end gap-3"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const num = trackLoadNumberInput.trim()
+              if (!num || !user?.id) return
+              const supabase = getSupabase()
+              if (!supabase) return
+              setTrackLoadError(null)
+              setTrackLoadSearching(true)
+              try {
+                const { data, error: e2 } = await supabase
+                  .from('loads')
+                  .select(`
+                    id, load_number, status, origin_city, origin_state, dest_city, dest_state, bol_image_url,
+                    driver_id, origin_geofence_lat, origin_geofence_lng, origin_geofence_radius_meters,
+                    dest_geofence_lat, dest_geofence_lng, dest_geofence_radius_meters,
+                    drivers(full_name)
+                  `)
+                  .eq('broker_profile_id', user.id)
+                  .eq('load_number', num)
+                  .maybeSingle()
+                if (e2) {
+                  setTrackLoadError(e2.message)
+                  setTrackLoad(null)
+                  return
+                }
+                if (!data) {
+                  setTrackLoadError('Load not found. Check the load number.')
+                  setTrackLoad(null)
+                  return
+                }
+                const r = data as Record<string, unknown>
+                if (!r.driver_id || !DISPATCHED_STATUSES.includes((r.status as string) ?? '')) {
+                  setTrackLoadError('That load has no dispatched driver yet.')
+                  setTrackLoad(null)
+                  return
+                }
+                setTrackLoad({
+                  id: r.id as string,
+                  load_number: r.load_number as string,
+                  status: r.status as string,
+                  origin: formatLoc(r.origin_city as string | null, r.origin_state as string | null),
+                  destination: formatLoc(r.dest_city as string | null, r.dest_state as string | null),
+                  bol_image_url: (r.bol_image_url as string | null) ?? null,
+                  driver_id: r.driver_id as string | null ?? null,
+                  driver_name: (r.drivers as { full_name?: string } | null)?.full_name ?? null,
+                  origin_geofence_lat: r.origin_geofence_lat as number | null ?? null,
+                  origin_geofence_lng: r.origin_geofence_lng as number | null ?? null,
+                  origin_geofence_radius_meters: r.origin_geofence_radius_meters as number | null ?? null,
+                  dest_geofence_lat: r.dest_geofence_lat as number | null ?? null,
+                  dest_geofence_lng: r.dest_geofence_lng as number | null ?? null,
+                  dest_geofence_radius_meters: r.dest_geofence_radius_meters as number | null ?? null,
+                })
+              } finally {
+                setTrackLoadSearching(false)
+              }
+            }}
+          >
+            <div>
+              <label htmlFor="track-load-number" className="block text-xs font-medium text-iron-400 mb-1">Load number</label>
+              <input
+                id="track-load-number"
+                type="text"
+                value={trackLoadNumberInput}
+                onChange={(e) => setTrackLoadNumberInput(e.target.value)}
+                placeholder="e.g. IF-99284"
+                className="w-48 rounded border border-iron-600 bg-iron-900 px-3 py-2 text-sm text-iron-200 placeholder:text-iron-500 focus:border-[#C1FF00] focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={trackLoadSearching || !trackLoadNumberInput.trim()}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#C1FF00] px-4 py-2 text-sm font-medium text-iron-950 hover:bg-[#C1FF00]/90 disabled:opacity-50"
+            >
+              {trackLoadSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+              {trackLoadSearching ? 'Looking up…' : 'Show map'}
+            </button>
+          </form>
+          {trackLoadError && <p className="mt-2 text-sm text-red-400">{trackLoadError}</p>}
+          {trackLoad && (
+            <div className="mt-4">
+              <TrackDriverMap load={trackLoad} onClose={() => { setTrackLoad(null); setTrackLoadError(null) }} />
+            </div>
+          )}
+        </div>
       )}
 
       {bolUploadError && <p className="mb-4 text-sm text-red-300">{bolUploadError}</p>}

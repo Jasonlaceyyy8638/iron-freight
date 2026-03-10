@@ -1,10 +1,31 @@
 import { NextResponse } from 'next/server'
 import sgMail from '@sendgrid/mail'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { buildInternalInviteEmail } from '@/lib/email-templates'
 
 // Must match SendGrid verified sender exactly (use lowercase to match Single Sender Verification)
 const FROM_EMAIL = 'info@getironfreight.com'
 const FROM_NAME = 'IronFreight'
+
+const LOGO_CID = 'ironfreight-logo'
+
+function getLogoAttachment(): { content: string; filename: string; type: string; content_id: string; disposition: string } | null {
+  const path = join(process.cwd(), 'public', 'icons', 'icon-192.png')
+  if (!existsSync(path)) return null
+  try {
+    const buffer = readFileSync(path)
+    return {
+      content: buffer.toString('base64'),
+      filename: 'icon-192.png',
+      type: 'image/png',
+      content_id: LOGO_CID,
+      disposition: 'inline',
+    }
+  } catch {
+    return null
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -35,19 +56,24 @@ export async function GET(request: Request) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
     const sampleLink = `${siteUrl}/admin/login?invite=test-token`
 
-    sgMail.setApiKey(apiKey)
-    const { subject, html, text } = buildInternalInviteEmail({
-      recipientName: 'Test User',
-      role: 'support',
-      inviteUrl: sampleLink,
-    })
+    const logoAttachment = getLogoAttachment()
+    const { subject, html, text } = buildInternalInviteEmail(
+      {
+        recipientName: 'Test User',
+        role: 'support',
+        inviteUrl: sampleLink,
+      },
+      logoAttachment ? { logoSrc: `cid:${LOGO_CID}` } : undefined
+    )
 
+    sgMail.setApiKey(apiKey)
     await sgMail.send({
       to,
       from: { email: FROM_EMAIL, name: FROM_NAME },
       subject: `[Test] ${subject}`,
       text,
       html,
+      ...(logoAttachment && { attachments: [logoAttachment] }),
     })
     return NextResponse.json({ ok: true, message: `Test email sent to ${to}. Check your inbox.` })
   } catch (err: unknown) {

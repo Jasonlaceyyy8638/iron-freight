@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useAtomValue } from 'jotai'
 import { userAtom } from '@/lib/store'
 import { signOut } from '@/lib/auth'
@@ -9,6 +10,7 @@ import { Logo } from '@/components/Logo'
 import { LandingTab } from '@/components/tabs/LandingTab'
 
 export default function HomePageClient() {
+  const pathname = usePathname()
   const user = useAtomValue(userAtom)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -17,7 +19,15 @@ export default function HomePageClient() {
     <div className="flex min-h-screen flex-col bg-background">
       <header className="flex-shrink-0 border-b border-divider bg-surface">
         <div className="flex items-center justify-between px-4 py-3 md:px-6">
-          <Link href="/" className="inline-flex">
+          <Link
+            href="/"
+            className="inline-flex"
+            onClick={(e) => {
+              if (pathname === '/') {
+                e.preventDefault()
+              }
+            }}
+          >
             <Logo className="text-white" />
           </Link>
           <nav className="flex items-center gap-3">

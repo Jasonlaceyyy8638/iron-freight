@@ -3,7 +3,7 @@
  * Dark slate backgrounds, #C1FF00 (Neon Lime) CTAs, IronFreight Shield header.
  */
 
-export { EMAIL, SHIELD_ICON_SVG } from './constants'
+export { EMAIL, SHIELD_ICON_SVG, getLogoUrl } from './constants'
 export { getEmailFooterHtml, getEmailFooterText } from './footer'
 export { buildEmailLayout } from './layout'
 export type { EmailLayoutParams } from './layout'
