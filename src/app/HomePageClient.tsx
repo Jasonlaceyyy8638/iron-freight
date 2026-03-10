@@ -9,11 +9,21 @@ import { signOut } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { LandingTab } from '@/components/tabs/LandingTab'
 
+/** True when running inside the Electron desktop app (so we hide "Download for desktop"). */
+function isDesktopApp(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!(window as unknown as { electronAPI?: unknown }).electronAPI
+}
+
 export default function HomePageClient() {
   const pathname = usePathname()
   const user = useAtomValue(userAtom)
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [inDesktopApp, setInDesktopApp] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    setInDesktopApp(isDesktopApp())
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -31,9 +41,11 @@ export default function HomePageClient() {
             <Logo className="text-white" />
           </Link>
           <nav className="flex items-center gap-3">
-            <Link href="/download" className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20">
-              Download for desktop
-            </Link>
+            {!inDesktopApp && (
+              <Link href="/download" className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20">
+                Download for desktop
+              </Link>
+            )}
             {!mounted ? (
               <Link href="/login" className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-black hover:opacity-95">
                 Sign in
