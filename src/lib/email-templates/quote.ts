@@ -71,8 +71,10 @@ export function buildQuoteEmail(params: {
   monthlySubscribeUrl?: string
   /** Subscribe yearly URL */
   yearlySubscribeUrl?: string
+  /** Logo img src – use 'cid:ironfreight-logo' when logo is attached inline (recommended for Outlook) */
+  logoSrc?: string
 }): { subject: string; html: string; text: string } {
-  const { name, role, ctaUrl, monthlySubscribeUrl, yearlySubscribeUrl } = params
+  const { name, role, ctaUrl, monthlySubscribeUrl, yearlySubscribeUrl, logoSrc } = params
   const config = QUOTE_CONFIG[role]
   const greeting = `Hello ${name},`
   const useSubscribeButtons = Boolean(monthlySubscribeUrl && yearlySubscribeUrl)
@@ -92,6 +94,7 @@ export function buildQuoteEmail(params: {
     monthlyUrl: monthlySubscribeUrl,
     yearlyUrl: yearlySubscribeUrl,
     backgroundColor: BG_DARK,
+    logoSrc,
   })
 
   const pricingText: Record<QuoteRole, string> = {

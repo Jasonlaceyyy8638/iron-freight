@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import sgMail from '@sendgrid/mail'
 import { buildQuoteEmail, type QuoteRole } from '@/lib/email-templates'
 import { getSubscribeUrl } from '@/lib/stripe-prices'
@@ -6,11 +8,32 @@ import { getSubscribeUrl } from '@/lib/stripe-prices'
 const FROM_EMAIL = 'billing@getironfreight.com'
 const FROM_NAME = 'IronFreight'
 
+const LOGO_CONTENT_ID = 'ironfreight-logo'
+
 function getSiteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://getironfreight.com')
   )
+}
+
+/** Read logo from public/icons/icon-192.png so we can attach it inline (Outlook shows it; external URLs are often blocked). */
+function readLogoBuffer(): Buffer | null {
+  const cwd = process.cwd()
+  const candidates = [
+    join(cwd, 'public', 'icons', 'icon-192.png'),
+    join(cwd, '..', 'public', 'icons', 'icon-192.png'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      try {
+        return readFileSync(p)
+      } catch {
+        break
+      }
+    }
+  }
+  return null
 }
 
 const VALID_ROLES: QuoteRole[] = ['broker', 'carrier', 'shipper']
@@ -40,13 +63,29 @@ export async function POST(request: Request) {
 
     const monthlySubscribeUrl = getSubscribeUrl(role, 'monthly')
     const yearlySubscribeUrl = getSubscribeUrl(role, 'yearly')
+    const logoBuffer = readLogoBuffer()
+    const useInlineLogo = Boolean(logoBuffer)
+
     const { subject, html, text } = buildQuoteEmail({
       name: name || 'there',
       role,
       ctaUrl: customCtaUrl ?? `${getSiteUrl()}/login`,
       monthlySubscribeUrl,
       yearlySubscribeUrl,
+      logoSrc: useInlineLogo ? `cid:${LOGO_CONTENT_ID}` : undefined,
     })
+
+    const attachments = useInlineLogo
+      ? [
+          {
+            content: logoBuffer!.toString('base64'),
+            filename: 'icon-192.png',
+            type: 'image/png',
+            disposition: 'inline' as const,
+            content_id: LOGO_CONTENT_ID,
+          },
+        ]
+      : undefined
 
     sgMail.setApiKey(apiKey)
     await sgMail.send({
@@ -55,6 +94,7 @@ export async function POST(request: Request) {
       subject,
       html,
       text,
+      attachments,
       headers: {
         'List-Unsubscribe': '<mailto:Billing@getironfreight.com?subject=Unsubscribe%20quote%20emails>',
         'X-Entity-Ref-ID': 'ironfreight-quote',
