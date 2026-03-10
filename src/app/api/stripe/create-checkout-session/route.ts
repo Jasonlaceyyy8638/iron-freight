@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const successUrl = typeof body.successUrl === 'string' && body.successUrl ? body.successUrl : `${baseUrl}/dashboard?checkout=success`
+    const successUrl = typeof body.successUrl === 'string' && body.successUrl ? body.successUrl : `${baseUrl}/login?checkout=success`
     const cancelUrl = typeof body.cancelUrl === 'string' && body.cancelUrl ? body.cancelUrl : `${baseUrl}/dashboard?checkout=cancelled`
     const clientReferenceId = typeof body.clientReferenceId === 'string' ? body.clientReferenceId : undefined
 

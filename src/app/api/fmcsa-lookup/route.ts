@@ -16,7 +16,10 @@ function normalizeMc(mc: string): string {
 export async function GET(request: Request) {
   const webKey = process.env.FMCSA_WEB_KEY?.trim()
   if (!webKey) {
-    return NextResponse.json({ error: 'FMCSA lookup not configured' }, { status: 503 })
+    return NextResponse.json(
+      { error: 'FMCSA lookup not configured. Add FMCSA_WEB_KEY to your environment (e.g. Netlify).' },
+      { status: 503 }
+    )
   }
 
   const { searchParams } = new URL(request.url)
@@ -40,17 +43,39 @@ export async function GET(request: Request) {
       url = `${FMCSA_BASE}/carriers/docket-number/${encodeURIComponent(docket)}?webKey=${encodeURIComponent(webKey)}`
     }
 
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       headers: { Accept: 'application/json' },
       next: { revalidate: 0 },
     })
 
+    // Some FMCSA environments expect docket as digits only (no "MC-" prefix)
+    if (!res.ok && mc && !dot) {
+      const mcDigits = mc.replace(/\D/g, '')
+      const docket = normalizeMc(mc)
+      if (mcDigits && docket.startsWith('MC-')) {
+        const altUrl = `${FMCSA_BASE}/carriers/docket-number/${mcDigits}?webKey=${encodeURIComponent(webKey)}`
+        const altRes = await fetch(altUrl, { headers: { Accept: 'application/json' }, next: { revalidate: 0 } })
+        if (altRes.ok) {
+          res = altRes
+        }
+      }
+    }
+
     if (!res.ok) {
       const text = await res.text()
-      console.error('FMCSA API error:', res.status, text.slice(0, 200))
+      console.error('[FMCSA] status:', res.status, 'url:', res.url, 'body:', text.slice(0, 400))
+      if (res.status === 404) {
+        return NextResponse.json({ error: 'Carrier not found for this MC/DOT number.' }, { status: 404 })
+      }
+      if (res.status === 401 || res.status === 403) {
+        return NextResponse.json(
+          { error: 'FMCSA API key invalid or expired. Check FMCSA_WEB_KEY in your environment.' },
+          { status: 502 }
+        )
+      }
       return NextResponse.json(
-        { error: res.status === 404 ? 'Carrier not found' : 'Lookup failed' },
-        { status: res.status === 404 ? 404 : 502 }
+        { error: 'FMCSA service temporarily unavailable. Try again or use "Open in FMCSA Safer" to verify the number.' },
+        { status: 502 }
       )
     }
 
@@ -78,7 +103,12 @@ export async function GET(request: Request) {
       carrier?.mc_number ??
       (carrier?.carrier?.docketNumber ?? carrier?.carrier?.mc_number)
 
-    const out = {
+    const out: {
+      legalName: string | null
+      dotNumber: string | null
+      mcNumber: string | null
+      suggestedRole?: 'broker' | 'carrier'
+    } = {
       legalName: typeof legalName === 'string' ? legalName.trim() || null : null,
       dotNumber: dotNumber != null ? String(dotNumber).replace(/\D/g, '') || null : null,
       mcNumber:
@@ -93,9 +123,33 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Carrier not found or no data returned' }, { status: 404 })
     }
 
+    // Fetch operating authority to determine broker vs carrier (for signup pricing)
+    const dotForAuthority = out.dotNumber || (dot ? dot.replace(/\D/g, '') : null)
+    if (webKey && dotForAuthority) {
+      try {
+        const authUrl = `${FMCSA_BASE}/carriers/${dotForAuthority}/authority?webKey=${encodeURIComponent(webKey)}`
+        const authRes = await fetch(authUrl, { headers: { Accept: 'application/json' }, next: { revalidate: 0 } })
+        if (authRes.ok) {
+          const authData = await authRes.json().catch(() => null)
+          const authStr = JSON.stringify(authData ?? {}).toLowerCase()
+          // Broker authority often appears as "broker", "bk", or "property broker"
+          const isBroker =
+            authStr.includes('"broker"') ||
+            authStr.includes('"bk"') ||
+            /broker\s*authority|property\s*broker/i.test(authStr)
+          out.suggestedRole = isBroker ? 'broker' : 'carrier'
+        }
+      } catch {
+        // Keep suggestedRole unset; frontend can keep user's choice
+      }
+    }
+
     return NextResponse.json(out)
   } catch (err) {
-    console.error('FMCSA lookup error:', err)
-    return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
+    console.error('[FMCSA] lookup error:', err)
+    return NextResponse.json(
+      { error: 'Lookup failed. Check the terminal (npm run dev) for the FMCSA response.' },
+      { status: 500 }
+    )
   }
 }

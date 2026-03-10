@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     const role = typeof body.role === 'string' && VALID_ROLES.includes(body.role as QuoteRole) ? (body.role as QuoteRole) : null
     const customCtaUrl = typeof body.ctaUrl === 'string' && body.ctaUrl.startsWith('http') ? body.ctaUrl : null
+    const companyName = typeof body.companyName === 'string' ? body.companyName.trim() || undefined : undefined
+    const phone = typeof body.phone === 'string' ? body.phone.trim() || undefined : undefined
 
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       return NextResponse.json({ error: 'Valid "to" email is required' }, { status: 400 })
@@ -50,6 +52,9 @@ export async function POST(request: Request) {
       monthlySubscribeUrl,
       yearlySubscribeUrl,
       logoSrc: logo?.logoSrc,
+      contactNote: 'Someone from our team will be in contact with you soon.',
+      companyName,
+      phone,
     })
 
     const attachments = logo ? [logo.attachment] : undefined

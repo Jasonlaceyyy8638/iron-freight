@@ -41,7 +41,41 @@ export async function POST(request: Request) {
           const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
           if (supabaseUrl && serviceKey) {
             const supabase = createClient(supabaseUrl, serviceKey)
-            await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('email', email)
+            const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
+            let subscriptionStatus: string | null = null
+            let roleFromPrice: string | null = null
+            if (subId) {
+              const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price'] })
+              subscriptionStatus = sub.status
+              const priceId = sub.items.data[0]?.price?.id
+              if (priceId) {
+                const brokerMonthly = process.env.STRIPE_PRICE_BROKER_MONTHLY?.trim()
+                const brokerYearly = process.env.STRIPE_PRICE_BROKER_YEARLY?.trim()
+                const carrierMonthly = process.env.STRIPE_PRICE_CARRIER_MONTHLY?.trim()
+                const carrierYearly = process.env.STRIPE_PRICE_CARRIER_YEARLY?.trim()
+                const shipperMonthly = process.env.STRIPE_PRICE_SHIPPER_MONTHLY?.trim()
+                const shipperYearly = process.env.STRIPE_PRICE_SHIPPER_YEARLY?.trim()
+                if (priceId === brokerMonthly || priceId === brokerYearly) roleFromPrice = 'broker'
+                else if (priceId === carrierMonthly || priceId === carrierYearly) roleFromPrice = 'carrier'
+                else if (priceId === shipperMonthly || priceId === shipperYearly) roleFromPrice = 'shipper'
+              }
+            }
+            const stripePayload = {
+              stripe_customer_id: customerId,
+              ...(subId && { stripe_subscription_id: subId }),
+              ...(subscriptionStatus && { stripe_subscription_status: subscriptionStatus }),
+            }
+            const { data: updated } = await supabase
+              .from('profiles')
+              .update(stripePayload)
+              .eq('email', email)
+              .select('id')
+            if (!updated?.length) {
+              await supabase.from('stripe_checkout_pending').upsert(
+                { email, stripe_customer_id: customerId, stripe_subscription_id: subId ?? undefined, stripe_subscription_status: subscriptionStatus ?? undefined, role: roleFromPrice ?? undefined },
+                { onConflict: 'email' }
+              )
+            }
 
             // If this is a broker subscription, add a second monthly metered subscription for $10/verified load
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
@@ -72,7 +106,20 @@ export async function POST(request: Request) {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
-        console.log('Subscription updated:', sub.id, sub.status)
+        const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status
+        try {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          if (supabaseUrl && serviceKey) {
+            const supabase = createClient(supabaseUrl, serviceKey)
+            await supabase
+              .from('profiles')
+              .update({ stripe_subscription_status: status })
+              .eq('stripe_subscription_id', sub.id)
+          }
+        } catch (e) {
+          console.error('Webhook: subscription status update', e)
+        }
         break
       }
       case 'invoice.paid':

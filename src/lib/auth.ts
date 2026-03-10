@@ -49,7 +49,7 @@ export async function getProfile(userId: string, email?: string): Promise<UserPr
   if (!supabase) return null
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role')
+    .select('id, email, full_name, role, stripe_subscription_status')
     .eq('id', userId)
     .single()
   if (!error && data) {
@@ -60,6 +60,7 @@ export async function getProfile(userId: string, email?: string): Promise<UserPr
       full_name: data.full_name ?? null,
       role,
       verified_status: 'pending',
+      stripe_subscription_status: (data as { stripe_subscription_status?: string }).stripe_subscription_status ?? null,
     }
   }
   const { data: user } = await supabase.auth.getUser()
@@ -71,7 +72,7 @@ export async function getProfile(userId: string, email?: string): Promise<UserPr
     role: 'broker',
   })
   if (insertErr) return null
-  const { data: inserted } = await supabase.from('profiles').select('id, email, full_name, role').eq('id', userId).single()
+  const { data: inserted } = await supabase.from('profiles').select('id, email, full_name, role, stripe_subscription_status').eq('id', userId).single()
   if (!inserted) return null
   return {
     id: inserted.id,
@@ -79,5 +80,6 @@ export async function getProfile(userId: string, email?: string): Promise<UserPr
     full_name: inserted.full_name ?? null,
     role: inserted.role as UserProfile['role'],
     verified_status: 'pending',
+    stripe_subscription_status: (inserted as { stripe_subscription_status?: string }).stripe_subscription_status ?? null,
   }
 }

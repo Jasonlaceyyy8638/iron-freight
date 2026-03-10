@@ -12,14 +12,19 @@ import {
   UserSearch,
   Navigation,
   FileCheck,
-  Building2,
-  Truck,
-  Warehouse,
   CheckCircle2,
   ArrowRight,
+  ChevronDown,
 } from 'lucide-react'
 
-type QuoteRole = 'broker' | 'carrier' | 'shipper'
+function ChainIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={className} aria-hidden>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  )
+}
 
 const TRUST_BADGES = [
   { icon: ShieldCheck, label: 'MC/DOT Verified' },
@@ -56,20 +61,37 @@ const FEATURES = [
   },
 ]
 
-const QUOTE_ROLES: { value: QuoteRole; label: string; description: string; icon: typeof Building2 }[] = [
-  { value: 'broker', label: 'Broker', description: 'Secure your pipeline', icon: Building2 },
-  { value: 'carrier', label: 'Carrier', description: 'Join the verified fleet', icon: Truck },
-  { value: 'shipper', label: 'Shipper', description: 'Gate security for your facility', icon: Warehouse },
+const FAQ_ITEMS: { question: string; answer: string }[] = [
+  {
+    question: 'What is IronFreight?',
+    answer:
+      'IronFreight is a freight verification platform that stops double brokering and cargo theft. We verify the real carrier, confirm driver identity at the dock, and prove the actual custody transfer of freight—so brokers and shippers know exactly who has their cargo.',
+  },
+  {
+    question: 'How does verification work at the dock?',
+    answer:
+      'Using IronGate™, we scan a cryptographic QR at pickup. The driver, carrier, and shipper are all verified in one handshake. Geo-Verify confirms the driver is physically at the right location. You get an instant digital chain-of-custody record and optional PDF reports sent to all parties.',
+  },
+  {
+    question: 'Who is IronFreight for?',
+    answer:
+      'Brokers use IronFreight to vet carriers and verify every load with identity and custody proof. Carriers join the verified fleet and get a free driver app for pickup verification. Shippers use the IronGate Scanner at the gate to verify driver identity and release freight securely.',
+  },
+  {
+    question: 'Is there a free trial?',
+    answer:
+      'Yes. You get a 7-day free trial when you sign up—no card required. Choose a monthly or yearly plan at login based on your role (broker, carrier, or shipper), or start your trial with no card and add one later when you subscribe.',
+  },
+  {
+    question: 'How do I get started?',
+    answer:
+      'Click Get Started to create your account. Brokers and carriers enter their MC number and we look up your company from FMCSA and show pricing. After checkout, you can post loads, add carriers, and run verification at the dock. Need a custom quote? Use Get a quote from the button below.',
+  },
 ]
 
 export function LandingTab() {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [quoteRole, setQuoteRole] = useState<QuoteRole>('broker')
-  const [quoteName, setQuoteName] = useState('')
-  const [quoteEmail, setQuoteEmail] = useState('')
-  const [quoteLoading, setQuoteLoading] = useState(false)
-  const [quoteSuccess, setQuoteSuccess] = useState(false)
-  const [quoteError, setQuoteError] = useState('')
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0)
 
   // Mute and pause video when it scrolls out of view
   useEffect(() => {
@@ -94,42 +116,35 @@ export function LandingTab() {
     return () => observer.disconnect()
   }, [])
 
-  async function handleGetQuote(e: React.FormEvent) {
-    e.preventDefault()
-    setQuoteError('')
-    setQuoteSuccess(false)
-    if (!quoteName.trim() || !quoteEmail.trim()) {
-      setQuoteError('Please enter your name and email.')
-      return
-    }
-    setQuoteLoading(true)
-    try {
-      const res = await fetch('/api/send-quote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: quoteEmail.trim(),
-          name: quoteName.trim(),
-          role: quoteRole,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setQuoteError(data.error || 'Something went wrong.')
-        return
-      }
-      setQuoteSuccess(true)
-      setQuoteName('')
-      setQuoteEmail('')
-    } catch {
-      setQuoteError('Network error. Please try again.')
-    } finally {
-      setQuoteLoading(false)
-    }
-  }
-
   return (
     <div className="flex flex-col">
+      {/* 7-day free trial banner — chain that can't be broken */}
+      <section className="relative overflow-hidden border-b border-primary/30 bg-[#0A0A0B] px-4 py-4">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_80%_at_50%_50%,rgba(193,255,0,0.06),transparent)]" />
+        <div className="relative z-10 mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-2 text-primary">
+            <ChainIcon className="h-8 w-8 shrink-0" />
+            <ChainIcon className="h-6 w-6 shrink-0 -ml-2" />
+            <ChainIcon className="h-8 w-8 shrink-0 -ml-2" />
+          </div>
+          <div className="flex flex-col items-center gap-0.5 text-center sm:flex-row sm:gap-3 sm:text-left">
+            <span className="font-display text-lg font-bold uppercase tracking-widest text-primary sm:text-xl">
+              7-Day Free Trial
+            </span>
+            <span className="hidden text-[#737373] sm:inline">—</span>
+            <span className="text-body-sm font-medium text-[#A3A3A3]">
+              <strong className="text-base font-bold text-[#CA8A04] sm:text-lg animate-no-card-pulse">No card required</strong> at sign up. The chain that can&apos;t be broken—start verifying freight.
+            </span>
+          </div>
+          <Link
+            href="/login"
+            className="shrink-0 rounded-lg border-2 border-primary bg-primary px-6 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-[#0A0A0B] transition hover:bg-primary/90 hover:border-primary"
+          >
+            Get Started
+          </Link>
+        </div>
+      </section>
+
       {/* Hero */}
       <section className="relative overflow-hidden bg-secondary px-6 py-16 md:py-20">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(193,255,0,0.08),transparent)]" />
@@ -158,7 +173,7 @@ export function LandingTab() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="#get-quote"
+                href="/quote"
                 className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/5 px-8 py-4 text-base font-medium text-white backdrop-blur-sm transition hover:bg-white/10"
               >
                 Get a quote
@@ -267,72 +282,40 @@ export function LandingTab() {
         </div>
       </section>
 
-      {/* Get Quote / Pricing by role */}
-      <section id="get-quote" className="scroll-mt-6 border-t border-divider bg-surface px-6 py-14 md:px-8">
-        <div className="mx-auto max-w-3xl">
-          <div className="text-center">
-            <h2 className="font-display text-headline-md font-bold text-white">Get a quote</h2>
-            <p className="mt-2 text-body-md text-[#A3A3A3]">
-              Tell us who you are and we&apos;ll send a tailored quote to your inbox from billing@getironfreight.com.
-            </p>
-          </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
-            {QUOTE_ROLES.map(({ value, label, description, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setQuoteRole(value)}
-                className={`flex flex-col items-center gap-1 rounded-xl border px-6 py-4 text-left transition md:min-w-[140px] ${
-                  quoteRole === value
-                    ? 'border-primary bg-primary/15 text-primary'
-                    : 'border-divider bg-background text-[#A3A3A3] hover:border-white/30 hover:text-[#F9FAFB]'
-                }`}
+      {/* FAQ */}
+      <section className="border-t border-primary/20 bg-[#141414] px-6 py-14 md:px-8">
+        <div className="mx-auto max-w-2xl">
+          <h2 className="font-display text-headline-md font-bold text-primary text-center">Frequently asked questions</h2>
+          <p className="mt-2 text-body-md text-[#A3A3A3] text-center">
+            Quick answers about IronFreight and how verification works.
+          </p>
+          <ul className="mt-8 space-y-2">
+            {FAQ_ITEMS.map((item, index) => (
+              <li
+                key={index}
+                className={`rounded-lg border border-divider bg-background overflow-hidden transition-colors ${
+                  openFaqIndex === index ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
+                } hover:bg-primary/5`}
               >
-                <Icon className="h-6 w-6" />
-                <span className="font-display font-semibold">{label}</span>
-                <span className="text-xs opacity-90">{description}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenFaqIndex(openFaqIndex === index ? null : index)}
+                  className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left font-medium text-white transition-colors"
+                  aria-expanded={openFaqIndex === index}
+                >
+                  <span>{item.question}</span>
+                  <ChevronDown
+                    className={`h-5 w-5 shrink-0 text-primary transition-transform ${openFaqIndex === index ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {openFaqIndex === index && (
+                  <div className="border-t border-divider bg-primary/5 px-4 py-3 text-body-md text-[#A3A3A3]" style={{ lineHeight: 1.6 }}>
+                    {item.answer}
+                  </div>
+                )}
+              </li>
             ))}
-          </div>
-          <form onSubmit={handleGetQuote} className="mt-8 flex flex-col gap-4 rounded-xl border border-divider bg-background p-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="font-display text-label-sm font-semibold text-[#F9FAFB]">Name</span>
-                <input
-                  type="text"
-                  value={quoteName}
-                  onChange={(e) => setQuoteName(e.target.value)}
-                  placeholder="Your name"
-                  className="rounded-lg border border-divider bg-surface px-4 py-3 text-white placeholder:text-[#71717A] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  disabled={quoteLoading}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="font-display text-label-sm font-semibold text-[#F9FAFB]">Email</span>
-                <input
-                  type="email"
-                  value={quoteEmail}
-                  onChange={(e) => setQuoteEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="rounded-lg border border-divider bg-surface px-4 py-3 text-white placeholder:text-[#71717A] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  disabled={quoteLoading}
-                />
-              </label>
-            </div>
-            {quoteError && <div className="text-sm text-red-400" role="alert">{quoteError}</div>}
-            {quoteSuccess && (
-              <div className="flex items-center gap-2 text-sm text-primary" role="status">
-                <CheckCircle2 className="h-4 w-4" aria-hidden /> Check your inbox for your role-based quote.
-              </div>
-            )}
-            <button
-              type="submit"
-              disabled={quoteLoading}
-              className="rounded-lg bg-primary px-6 py-3 font-semibold text-[#0A0A0B] transition hover:bg-primary/90 disabled:opacity-60"
-            >
-              {quoteLoading ? 'Sending…' : 'Send my quote'}
-            </button>
-          </form>
+          </ul>
         </div>
       </section>
 
@@ -352,7 +335,7 @@ export function LandingTab() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="#get-quote"
+              href="/quote"
               className="inline-flex items-center justify-center rounded-lg border border-white/30 px-8 py-4 text-base font-medium text-white transition hover:bg-white/10"
             >
               Get a quote

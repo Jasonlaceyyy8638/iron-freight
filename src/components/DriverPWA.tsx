@@ -9,14 +9,7 @@ export function DriverPWA() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
 
   useEffect(() => {
-    // Ensure manifest and theme are in head (some browsers need them early)
-    const existing = document.querySelector('link[rel="manifest"][href="/driver-manifest.json"]')
-    if (!existing) {
-      const link = document.createElement('link')
-      link.rel = 'manifest'
-      link.href = '/driver-manifest.json'
-      document.head.appendChild(link)
-    }
+    // Theme for driver area (root layout already has site manifest)
     let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null
     if (!themeMeta) {
       themeMeta = document.createElement('meta')

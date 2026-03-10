@@ -40,3 +40,12 @@
   from { transform: translateY(0); opacity: 1; }
   to { transform: translateY(-100%); opacity: 0.95; }
 }
+
+/* Banner: "No card required" gentle pulse (darker amber) */
+@keyframes no-card-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px rgba(202, 138, 4, 0.5)); }
+  50% { opacity: 0.9; filter: drop-shadow(0 0 14px rgba(202, 138, 4, 0.7)); }
+}
+.animate-no-card-pulse {
+  animation: no-card-pulse 2s ease-in-out infinite;
+}

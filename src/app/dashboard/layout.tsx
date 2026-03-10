@@ -8,6 +8,11 @@ import { userAtom, authReadyAtom } from '@/lib/store'
 import { signOut } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 
+const SUBSCRIPTION_REQUIRED_ROLES = ['broker', 'carrier', 'shipper'] as const
+function hasActiveSubscription(status: string | null | undefined): boolean {
+  return status === 'active' || status === 'trialing'
+}
+
 const TABS = [
   { id: 'load-board', label: 'Load Board' },
   { id: 'my-loads', label: 'My Loads' },
@@ -25,7 +30,18 @@ export default function DashboardLayout({
   const currentTab = pathname?.split('/').pop() || 'load-board'
 
   useEffect(() => {
-    if (authReady && !user) router.replace('/login')
+    if (!authReady) return
+    if (!user) {
+      router.replace('/login')
+      return
+    }
+    const role = user.role
+    if (SUBSCRIPTION_REQUIRED_ROLES.includes(role as (typeof SUBSCRIPTION_REQUIRED_ROLES)[number])) {
+      const status = user.stripe_subscription_status
+      if (!hasActiveSubscription(status)) {
+        router.replace('/subscribe-required')
+      }
+    }
   }, [authReady, user, router])
 
   return (

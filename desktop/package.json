@@ -1,0 +1,73 @@
+{
+  "name": "ironfreight-desktop",
+  "version": "1.0.0",
+  "description": "IronFreight desktop app",
+  "main": "main.js",
+  "author": "IronFreight",
+  "scripts": {
+    "start": "electron .",
+    "ico": "node scripts/png-to-ico.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "npm run ico && electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.getironfreight.app",
+    "productName": "IronFreight",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "../public/icons/icon-192.png",
+      "category": "public.app-category.business"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "../public/icons"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "png-to-ico": "^3.0.1"
+  }
+}

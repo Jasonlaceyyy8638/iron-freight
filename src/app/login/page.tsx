@@ -8,7 +8,7 @@ import { signIn, signUp, getProfile } from '@/lib/auth'
 import { getSupabase } from '@/lib/supabase/client'
 import { Logo } from '@/components/Logo'
 import { Footer } from '@/components/Footer'
-import { Search, Eye, EyeOff } from 'lucide-react'
+import { Search, Eye, EyeOff, X } from 'lucide-react'
 
 type NonAdminRole = 'broker' | 'carrier' | 'shipper' | 'driver'
 
@@ -18,13 +18,16 @@ const ROLES: { value: NonAdminRole; label: string }[] = [
   { value: 'shipper', label: 'Shipper' },
   { value: 'driver', label: 'Driver' },
 ]
+/** Signup only: Broker, Carrier, Shipper. Driver is invite-only. */
+const SIGNUP_ROLES = ROLES.filter((r) => r.value !== 'driver')
 
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const inviteToken = searchParams?.get('invite') ?? null
   const inviteTypeParam = searchParams?.get('type') ?? null // 'carrier' | 'broker'
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const checkoutSuccess = searchParams?.get('checkout') === 'success'
+  const [mode, setMode] = useState<'signin' | 'signup'>(checkoutSuccess ? 'signup' : 'signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -39,6 +42,9 @@ function LoginContent() {
   const [inviteCarrierName, setInviteCarrierName] = useState<string | null>(null)
   const [fmcsaLookupLoading, setFmcsaLookupLoading] = useState(false)
   const [fmcsaLookupError, setFmcsaLookupError] = useState<string | null>(null)
+  const [showPricingModal, setShowPricingModal] = useState(false)
+  const [pricingModalRole, setPricingModalRole] = useState<'broker' | 'carrier' | null>(null)
+  const [preferTrialNoCard, setPreferTrialNoCard] = useState(false)
 
   useEffect(() => {
     if (!inviteToken || !inviteTypeParam) return
@@ -93,6 +99,21 @@ function LoginContent() {
       if (data.legalName) setFullName(data.legalName)
       if (data.dotNumber) setDotNumber(data.dotNumber)
       if (data.mcNumber && mc) setMcNumber(data.mcNumber)
+      const resolvedRole: 'broker' | 'carrier' =
+        data.suggestedRole === 'broker' || data.suggestedRole === 'carrier'
+          ? data.suggestedRole
+          : role === 'broker' || role === 'carrier'
+            ? role
+            : 'broker'
+      if (data.suggestedRole && (data.suggestedRole === 'broker' || data.suggestedRole === 'carrier')) {
+        setRoleLocal(data.suggestedRole)
+      } else if (role !== 'broker' && role !== 'carrier') {
+        setRoleLocal(resolvedRole)
+      }
+      if (mode === 'signup' && !isCarrierInvite) {
+        setPricingModalRole(resolvedRole)
+        setShowPricingModal(true)
+      }
     } catch {
       setFmcsaLookupError('Lookup failed')
     } finally {
@@ -101,8 +122,12 @@ function LoginContent() {
   }
 
   const openFmcsaSafer = () => {
-    const mc = mcNumber.trim() || dotNumber.trim() || '000000'
-    window.open(`https://safer.fmcsa.dot.gov/keywordx.aspx?searchstring=${encodeURIComponent(mc)}`, '_blank', 'noopener,noreferrer')
+    const mc = mcNumber.trim().replace(/\D/g, '') || ''
+    const dot = dotNumber.trim().replace(/\D/g, '') || ''
+    const searchVal = mc || dot || '000000'
+    const param = dot && !mc ? 'USDOT' : 'MC_MX'
+    const q = encodeURIComponent(searchVal)
+    window.open(`https://safer.fmcsa.dot.gov/query.asp?query_param=${param}&query_string=${q}&query_type=queryCarrierSnapshot`, '_blank', 'noopener,noreferrer')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -137,6 +162,22 @@ function LoginContent() {
               full_name: fullName.trim() || email.trim(),
               cdl_number: cdlNumber.trim(),
             })
+          }
+        }
+        if (preferTrialNoCard && (role === 'broker' || role === 'carrier' || role === 'shipper')) {
+          try {
+            const trialRes = await fetch('/api/stripe/start-trial', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email.trim().toLowerCase(), role }),
+            })
+            if (!trialRes.ok) {
+              const err = await trialRes.json().catch(() => ({}))
+              console.error('Start trial failed:', err)
+            }
+            setPreferTrialNoCard(false)
+          } catch (e) {
+            console.error('Start trial error:', e)
           }
         }
         if (role === 'driver') router.push('/driver')
@@ -196,7 +237,12 @@ function LoginContent() {
             </button>
           </div>
 
-          {isInviteFlow && (
+          {checkoutSuccess && (
+            <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-body-sm text-primary">
+              Your 7-day free trial has started. Create your account below using the <strong>same email</strong> you used at checkout.
+            </p>
+          )}
+          {isInviteFlow && !checkoutSuccess && (
             <p className="mb-3 rounded-lg border border-[#C1FF00]/30 bg-[#C1FF00]/10 px-3 py-2 text-body-sm text-[#C1FF00]">
               {isCarrierInvite && inviteCarrierName
                 ? `You're invited to join ${inviteCarrierName} as a driver. Create your account below.`
@@ -209,7 +255,7 @@ function LoginContent() {
             {mode === 'signup' ? 'Create account' : 'Sign in'}
           </h1>
           <p className="mt-1 text-body-sm text-[#A3A3A3]">
-            {mode === 'signup' ? 'Choose your role. Brokers and carriers must provide MC number.' : 'Choose your role for redirect after sign-in.'}
+            {mode === 'signup' ? 'Brokers and carriers: enter MC number and click Look up to see your plan and pricing.' : 'Choose your role for redirect after sign-in.'}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
@@ -335,15 +381,16 @@ function LoginContent() {
                 </button>
               </div>
             </div>
-            <div>
-              <label className="block text-label-lg font-medium text-[#A3A3A3]">Role</label>
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-label-lg font-medium text-[#A3A3A3]">Role</label>
               {isInviteFlow ? (
                 <p className="mt-1 text-body-sm text-[#F9FAFB]">You’re signing up as <strong>{role === 'driver' ? 'Driver' : 'Broker'}</strong> (from invite).</p>
               ) : (
                 <>
                   <p className="mt-0.5 text-body-sm text-[#525252]">Used for redirect; your profile role is set on sign-up.</p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {ROLES.map((r) => (
+                    {SIGNUP_ROLES.map((r) => (
                       <button
                         key={r.value}
                         type="button"
@@ -356,11 +403,12 @@ function LoginContent() {
                       >
                         {r.label}
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {error && (
               <p className="rounded-lg border border-error/50 bg-error/10 px-3 py-2 text-body-sm text-red-300">
                 {error}
@@ -387,6 +435,69 @@ function LoginContent() {
               Staff sign in
             </Link>
           </p>
+
+          {showPricingModal && pricingModalRole && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" role="dialog" aria-modal="true" aria-labelledby="pricing-modal-title">
+              <div className="relative w-full max-w-md rounded-xl border border-divider bg-[#141414] p-6 shadow-xl">
+                <div className="flex items-start justify-between gap-4">
+                  <h2 id="pricing-modal-title" className="font-display text-lg font-bold text-[#F9FAFB]">
+                    Choose your plan
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPricingModal(false)
+                      setPricingModalRole(null)
+                    }}
+                    className="-m-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-primary hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="mt-2 text-body-sm text-[#A3A3A3]">
+                  {fullName ? (
+                    <>We found <strong className="text-[#F9FAFB]">{fullName}</strong>. Based on FMCSA records, you&apos;re identified as a <strong className="text-primary">{pricingModalRole === 'broker' ? 'Broker' : 'Carrier'}</strong>.</>
+                  ) : (
+                    <>Based on FMCSA records, you&apos;re identified as a <strong className="text-primary">{pricingModalRole === 'broker' ? 'Broker' : 'Carrier'}</strong>.</>
+                  )}
+                </p>
+                <div className="mt-4 rounded-lg border border-divider bg-surface/50 p-3 text-body-sm text-[#A3A3A3]">
+                  {pricingModalRole === 'broker' ? (
+                    <>Broker: <strong className="text-[#F9FAFB]">$299/mo</strong> or <strong className="text-[#F9FAFB]">$2,990/year</strong> (2 months free). Includes unlimited carrier vetting; IronGate verification $10/verified load.</>
+                  ) : (
+                    <>Carrier: <strong className="text-[#F9FAFB]">$99/mo</strong> or <strong className="text-[#F9FAFB]">$990/year</strong> (2 months free). Driver app always free.</>
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-[#A3A3A3]">Start your 7-day free trial. No card required—add one later when you subscribe.</p>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreferTrialNoCard(true)
+                      setShowPricingModal(false)
+                      setPricingModalRole(null)
+                    }}
+                    className="rounded-lg border-2 border-primary bg-primary py-2.5 text-center font-medium text-black hover:bg-primary/90"
+                  >
+                    Start free trial (no card required)
+                  </button>
+                  <Link
+                    href={`/subscribe/${pricingModalRole}/monthly`}
+                    className="rounded-lg border border-primary/50 bg-primary/10 py-2.5 text-center font-medium text-primary hover:bg-primary/20"
+                  >
+                    Pay monthly (7-day free trial)
+                  </Link>
+                  <Link
+                    href={`/subscribe/${pricingModalRole}/yearly`}
+                    className="rounded-lg border border-primary/50 bg-primary/10 py-2.5 text-center font-medium text-primary hover:bg-primary/20"
+                  >
+                    Pay yearly (7-day free trial, save 2 months)
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

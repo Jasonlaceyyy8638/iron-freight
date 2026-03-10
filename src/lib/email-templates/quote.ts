@@ -73,15 +73,28 @@ export function buildQuoteEmail(params: {
   yearlySubscribeUrl?: string
   /** Logo img src – use 'cid:ironfreight-logo' when logo is attached inline (recommended for Outlook) */
   logoSrc?: string
+  /** Short note e.g. "Someone from our team will be in contact with you soon." */
+  contactNote?: string
+  companyName?: string
+  phone?: string
 }): { subject: string; html: string; text: string } {
-  const { name, role, ctaUrl, monthlySubscribeUrl, yearlySubscribeUrl, logoSrc } = params
+  const { name, role, ctaUrl, monthlySubscribeUrl, yearlySubscribeUrl, logoSrc, contactNote, companyName, phone } = params
   const config = QUOTE_CONFIG[role]
   const greeting = `Hello ${name},`
   const useSubscribeButtons = Boolean(monthlySubscribeUrl && yearlySubscribeUrl)
+  const contactLine = contactNote
+    ? `<p style="margin: 0 0 16px; color: ${EMAIL.TEXT_MUTED}; font-size: 14px;">${contactNote.replace(/</g, '&lt;')}</p>`
+    : ''
+  const companyPhoneLine =
+    companyName || phone
+      ? `<p style="margin: 0 0 16px; color: ${EMAIL.TEXT_MUTED}; font-size: 13px;">${[companyName && `Company: ${companyName.replace(/</g, '&lt;')}`, phone && `Phone: ${phone.replace(/</g, '&lt;')}`].filter(Boolean).join(' &nbsp;|&nbsp; ')}</p>`
+      : ''
 
   const bodyHtml = `
     <p style="margin: 0 0 16px;">${greeting}</p>
+    ${contactLine}
     <p style="margin: 0 0 16px;">${config.bodyIntro}</p>
+    ${companyPhoneLine}
     ${config.pricingHtml}
     <p style="margin: 0 0 8px; color: ${EMAIL.TEXT_MUTED}; font-size: 14px;">${useSubscribeButtons ? 'Choose your plan below to get started.' : 'Use the button below to take the next step.'}</p>
   `.trim()
@@ -106,18 +119,12 @@ export function buildQuoteEmail(params: {
   const ctaLines = useSubscribeButtons
     ? [`Pay monthly: ${monthlySubscribeUrl}`, `Pay yearly (save 2 months): ${yearlySubscribeUrl}`]
     : [config.ctaLabel + ':', ctaUrl || '']
-  const text = [
-    greeting,
-    '',
-    config.bodyIntro.replace(/<[^>]+>/g, ''),
-    '',
-    'Current Pricing Structure:',
-    pricingText[role],
-    '',
-    ...ctaLines,
-    '',
-    getEmailFooterText(),
-  ].join('\n')
+  const textParts = [greeting, '']
+  if (contactNote) textParts.push(contactNote, '')
+  textParts.push(config.bodyIntro.replace(/<[^>]+>/g, ''), '')
+  if (companyName || phone) textParts.push([companyName && `Company: ${companyName}`, phone && `Phone: ${phone}`].filter(Boolean).join(' | '), '')
+  textParts.push('Current Pricing Structure:', pricingText[role], '', ...ctaLines, '', getEmailFooterText())
+  const text = textParts.join('\n')
 
   return { subject: config.subject, html, text }
 }

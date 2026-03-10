@@ -31,6 +31,9 @@ export default function HomePageClient() {
             <Logo className="text-white" />
           </Link>
           <nav className="flex items-center gap-3">
+            <Link href="/download" className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20">
+              Download for desktop
+            </Link>
             {!mounted ? (
               <Link href="/login" className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-black hover:opacity-95">
                 Sign in
