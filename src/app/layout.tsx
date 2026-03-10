@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { Footer } from '@/components/Footer'
@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: 'IronFreight – Verify Carriers. Confirm Drivers. Protect Freight.',
   description: 'Secure freight verification and identity protection. Verify the real carrier, confirm driver identity at the dock, prove custody transfer—and stop double brokering.',
   manifest: '/manifest.json',
+}
+
+export const viewport: Viewport = {
   themeColor: '#C1FF00',
 }
 

@@ -31,6 +31,7 @@ function LoginContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [mcNumber, setMcNumber] = useState('')
   const [dotNumber, setDotNumber] = useState('')
   const [cdlNumber, setCdlNumber] = useState('')
@@ -96,7 +97,7 @@ function LoginContent() {
         setFmcsaLookupError(data.error ?? 'Lookup failed')
         return
       }
-      if (data.legalName) setFullName(data.legalName)
+      if (data.legalName) setCompanyName(data.legalName)
       if (data.dotNumber) setDotNumber(data.dotNumber)
       if (data.mcNumber && mc) setMcNumber(data.mcNumber)
       const resolvedRole: 'broker' | 'carrier' =
@@ -144,13 +145,14 @@ function LoginContent() {
     setLoading(true)
     try {
       if (mode === 'signup') {
+        const displayName = isCarrierInvite ? fullName.trim() || undefined : companyName.trim() || undefined
         const data = await signUp(
           email.trim(),
           password,
           role,
-          fullName.trim() || undefined,
+          displayName,
           needsMcDot
-            ? { mcNumber: mcNumber.trim(), dotNumber: dotNumber.trim() || undefined, legalName: fullName.trim() || undefined }
+            ? { mcNumber: mcNumber.trim(), dotNumber: dotNumber.trim() || undefined, legalName: companyName.trim() || undefined }
             : undefined
         )
         if (role === 'driver' && inviteCarrierId && data?.user && cdlNumber.trim()) {
@@ -259,10 +261,10 @@ function LoginContent() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-            {mode === 'signup' && (
+            {mode === 'signup' && isCarrierInvite && (
               <div>
                 <label htmlFor="fullName" className="block text-label-lg font-medium text-[#A3A3A3]">
-                  Full name
+                  Your name
                 </label>
                 <input
                   id="fullName"
@@ -307,7 +309,7 @@ function LoginContent() {
                     </button>
                   </div>
                   {fmcsaLookupError && <p className="mt-1 text-xs text-red-400">{fmcsaLookupError}</p>}
-                  <p className="mt-1 text-xs text-[#525252]">Look up auto-fills legal name and DOT. <button type="button" onClick={openFmcsaSafer} className="text-primary hover:underline">Open in FMCSA Safer</button></p>
+                  <p className="mt-1 text-xs text-[#525252]">Look up auto-fills company name and DOT. <button type="button" onClick={openFmcsaSafer} className="text-primary hover:underline">Open in FMCSA Safer</button></p>
                 </div>
                 <div>
                   <label htmlFor="dotNumber" className="block text-label-lg font-medium text-[#A3A3A3]">
@@ -320,6 +322,19 @@ function LoginContent() {
                     onChange={(e) => setDotNumber(e.target.value)}
                     className="mt-1 block w-full rounded-lg border border-divider bg-surface px-3 py-2.5 text-[#F9FAFB] placeholder-[#525252] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="e.g. 1234567"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="companyName" className="block text-label-lg font-medium text-[#A3A3A3]">
+                    Company name
+                  </label>
+                  <input
+                    id="companyName"
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="mt-1 block w-full rounded-lg border border-divider bg-surface px-3 py-2.5 text-[#F9FAFB] placeholder-[#525252] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="e.g. Acme Trucking LLC"
                   />
                 </div>
               </div>
@@ -456,8 +471,8 @@ function LoginContent() {
                   </button>
                 </div>
                 <p className="mt-2 text-body-sm text-[#A3A3A3]">
-                  {fullName ? (
-                    <>We found <strong className="text-[#F9FAFB]">{fullName}</strong>. Based on FMCSA records, you&apos;re identified as a <strong className="text-primary">{pricingModalRole === 'broker' ? 'Broker' : 'Carrier'}</strong>.</>
+                  {companyName ? (
+                    <>We found <strong className="text-[#F9FAFB]">{companyName}</strong>. Based on FMCSA records, you&apos;re identified as a <strong className="text-primary">{pricingModalRole === 'broker' ? 'Broker' : 'Carrier'}</strong>.</>
                   ) : (
                     <>Based on FMCSA records, you&apos;re identified as a <strong className="text-primary">{pricingModalRole === 'broker' ? 'Broker' : 'Carrier'}</strong>.</>
                   )}

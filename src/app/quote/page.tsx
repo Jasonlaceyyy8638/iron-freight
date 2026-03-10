@@ -15,7 +15,6 @@ const ROLES: { value: QuoteRole; label: string }[] = [
 
 export default function QuotePage() {
   const [role, setRole] = useState<QuoteRole>('broker')
-  const [name, setName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [mcNumber, setMcNumber] = useState('')
   const [dotNumber, setDotNumber] = useState('')
@@ -46,10 +45,7 @@ export default function QuotePage() {
         setLookupError(data.error ?? 'Lookup failed')
         return
       }
-      if (data.legalName) {
-        setName(data.legalName)
-        setCompanyName(data.legalName)
-      }
+      if (data.legalName) setCompanyName(data.legalName)
       if (data.dotNumber) setDotNumber(data.dotNumber)
       if (data.mcNumber && mc) setMcNumber(data.mcNumber)
     } catch {
@@ -63,10 +59,6 @@ export default function QuotePage() {
     e.preventDefault()
     setError(null)
     setSuccess(false)
-    if (!name.trim()) {
-      setError('Name is required.')
-      return
-    }
     if (!email.trim()) {
       setError('Email is required.')
       return
@@ -86,7 +78,7 @@ export default function QuotePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email.trim(),
-          name: name.trim(),
+          name: companyName.trim() || email.trim(),
           role,
           companyName: companyName.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -166,21 +158,6 @@ export default function QuotePage() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="quote-name" className="block text-sm font-medium text-[#A3A3A3]">
-                Full name <span className="text-[#C1FF00]">*</span>
-              </label>
-              <input
-                id="quote-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-lg border border-[#404040] bg-[#262626] px-4 py-3 text-white placeholder:text-[#71717A] focus:border-[#C1FF00] focus:outline-none focus:ring-1 focus:ring-[#C1FF00]"
-                placeholder="Your name"
-              />
-            </div>
-
             {needsMcDot && (
               <div className="space-y-4 rounded-xl border border-[#404040] bg-[#1A1A1A] p-4">
                 <div>
@@ -213,7 +190,7 @@ export default function QuotePage() {
                   </div>
                   {lookupError && <p className="mt-1 text-xs text-red-400">{lookupError}</p>}
                   <p className="mt-1 text-xs text-[#737373]">
-                    Look up auto-fills name, company, and DOT below.
+                    Look up auto-fills company name and DOT below.
                   </p>
                 </div>
                 <div>

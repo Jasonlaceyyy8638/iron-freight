@@ -1,11 +1,17 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { DriverPWA } from '@/components/DriverPWA'
 
 export const metadata: Metadata = {
   title: 'IronFreight Driver',
   description: 'View your assigned load and show IronGate QR for verification',
+}
+
+export const viewport: Viewport = {
   themeColor: '#C1FF00',
-  viewport: { width: 'device-width', initialScale: 1, maximumScale: 1, userScalable: false },
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function DriverLayout({
