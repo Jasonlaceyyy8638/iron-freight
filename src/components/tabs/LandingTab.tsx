@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ArrowRight,
   ChevronDown,
+  Download,
 } from 'lucide-react'
 
 function ChainIcon({ className }: { className?: string }) {
@@ -186,7 +187,7 @@ export function LandingTab() {
               </Link>
             </div>
           </div>
-          <div className="flex flex-1 justify-center">
+          <div className="flex flex-1 flex-col items-center justify-center">
             <video
               ref={videoRef}
               src="/ironfreight-explainer.mp4"
@@ -198,6 +199,14 @@ export function LandingTab() {
             >
               Your browser does not support the video tag.
             </video>
+            <a
+              href="/ironfreight-explainer.mp4"
+              download="IronFreight-explainer.mp4"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            >
+              <Download className="h-4 w-4 shrink-0" aria-hidden />
+              Download video
+            </a>
           </div>
         </div>
         <div className="absolute right-0 top-0 opacity-[0.07]" style={{ transform: 'rotate(12deg)' }}>

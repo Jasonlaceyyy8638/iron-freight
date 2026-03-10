@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
 import {
@@ -13,6 +13,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  Download,
 } from 'lucide-react'
 import {
   BrokerDashboardPreview,
@@ -66,6 +67,28 @@ const LOCAL_VIDEO_PATH = '/videos/investor-overview.mp4'
 function InvestorVideo() {
   const isEmbed = INVESTOR_VIDEO_URL && /^https?:\/\//i.test(INVESTOR_VIDEO_URL)
   const hasLocal = !!INVESTOR_VIDEO_URL && !isEmbed
+  const containerRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    if (isEmbed || !containerRef.current || !videoRef.current) return
+    const container = containerRef.current
+    const video = videoRef.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (!entry) return
+        if (entry.isIntersecting) {
+          video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.5, rootMargin: '0px' }
+    )
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [isEmbed])
 
   if (isEmbed) {
     return (
@@ -83,16 +106,30 @@ function InvestorVideo() {
 
   const videoSrc = hasLocal ? INVESTOR_VIDEO_URL : LOCAL_VIDEO_PATH
   return (
-    <div className="mt-4 aspect-video w-full overflow-hidden rounded-xl border border-iron-700 bg-black">
-      <video
-        className="h-full w-full object-contain"
-        src={videoSrc}
-        controls
-        playsInline
-        preload="metadata"
+    <div className="mt-4">
+      <div
+        ref={containerRef}
+        className="aspect-video w-full overflow-hidden rounded-xl border border-iron-700 bg-black"
       >
-        <track kind="captions" />
-      </video>
+        <video
+          ref={videoRef}
+          className="h-full w-full object-contain"
+          src={videoSrc}
+          controls
+          playsInline
+          preload="metadata"
+        >
+          <track kind="captions" />
+        </video>
+      </div>
+      <a
+        href={videoSrc}
+        download="IronFreight-investor-overview.mp4"
+        className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+      >
+        <Download className="h-4 w-4 shrink-0" aria-hidden />
+        Download video
+      </a>
     </div>
   )
 }
