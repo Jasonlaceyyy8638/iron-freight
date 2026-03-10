@@ -11,11 +11,14 @@ export function getCarrierInviteSubject(carrierName: string): string {
   return `Identity Verification Required: Join ${carrierName} on IronFreight`
 }
 
-export function buildCarrierInviteEmail(params: {
-  recipientName: string | null
-  carrierName: string
-  inviteUrl: string
-}): { subject: string; html: string; text: string } {
+export function buildCarrierInviteEmail(
+  params: {
+    recipientName: string | null
+    carrierName: string
+    inviteUrl: string
+  },
+  options?: { logoSrc?: string }
+): { subject: string; html: string; text: string } {
   const { recipientName, carrierName, inviteUrl } = params
   const greeting = recipientName ? `Hi ${recipientName},` : 'Hi,'
 
@@ -34,6 +37,7 @@ export function buildCarrierInviteEmail(params: {
     bodyHtml,
     ctaLabel: 'Complete Driver/Dispatcher Onboarding',
     ctaUrl: inviteUrl,
+    logoSrc: options?.logoSrc,
   })
 
   const text = [

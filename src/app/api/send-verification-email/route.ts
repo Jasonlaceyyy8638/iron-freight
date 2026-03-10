@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import sgMail from '@sendgrid/mail'
 import { buildEmailLayout } from '@/lib/email-templates'
 import { getEmailFooterText } from '@/lib/email-templates'
+import { getLogoAttachment } from '@/lib/email-logo'
 import { reportVerificationCharge } from '@/lib/stripe-verification'
 
 const FROM_EMAIL = 'verify@getironfreight.com'
@@ -88,9 +89,11 @@ export async function POST(request: Request) {
       <p style="margin: 0 0 16px;"><strong>Load #${loadNumber}: Driver Identity Verified at Pickup</strong></p>
       <p style="margin: 0 0 16px;">The driver assigned to this load has completed identity verification at pickup. This is an automated notification from IronFreight (verify@getironfreight.com).</p>
     `.trim()
+    const logo = getLogoAttachment()
     const html = buildEmailLayout({
       preheader: `Load #${loadNumber}: Driver identity verified at pickup.`,
       bodyHtml,
+      logoSrc: logo?.logoSrc,
     })
     const text = [
       `Load #${loadNumber}: Driver Identity Verified at Pickup`,
@@ -107,6 +110,7 @@ export async function POST(request: Request) {
       subject,
       text,
       html,
+      attachments: logo ? [logo.attachment] : undefined,
     })
 
     // $10 per verified load: prefer metered subscription (monthly invoice); else invoice item (next subscription invoice)

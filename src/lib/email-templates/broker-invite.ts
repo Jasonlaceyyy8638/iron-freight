@@ -10,11 +10,14 @@ export function getBrokerInviteSubject(brokerageName: string): string {
   return `Invitation to Join the ${brokerageName} Desk on IronFreight`
 }
 
-export function buildBrokerInviteEmail(params: {
-  recipientName: string | null
-  brokerageName: string
-  inviteUrl: string
-}): { subject: string; html: string; text: string } {
+export function buildBrokerInviteEmail(
+  params: {
+    recipientName: string | null
+    brokerageName: string
+    inviteUrl: string
+  },
+  options?: { logoSrc?: string }
+): { subject: string; html: string; text: string } {
   const { recipientName, brokerageName, inviteUrl } = params
   const greeting = recipientName ? `Hi ${recipientName},` : 'Hi,'
 
@@ -30,6 +33,7 @@ export function buildBrokerInviteEmail(params: {
     bodyHtml,
     ctaLabel: 'Activate Broker Portal',
     ctaUrl: inviteUrl,
+    logoSrc: options?.logoSrc,
   })
 
   const text = [

@@ -37,6 +37,8 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [inviteCarrierId, setInviteCarrierId] = useState<string | null>(null)
   const [inviteCarrierName, setInviteCarrierName] = useState<string | null>(null)
+  const [fmcsaLookupLoading, setFmcsaLookupLoading] = useState(false)
+  const [fmcsaLookupError, setFmcsaLookupError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!inviteToken || !inviteTypeParam) return
@@ -71,8 +73,35 @@ function LoginContent() {
   const isCarrierInvite = inviteTypeParam === 'carrier'
   const needsMcDot = (role === 'broker' || role === 'carrier') && mode === 'signup' && !isCarrierInvite
 
-  const handleFmcsaLookup = () => {
-    const mc = mcNumber.trim() || '000000'
+  const handleFmcsaLookup = async () => {
+    const mc = mcNumber.trim()
+    const dot = dotNumber.trim()
+    if (!mc && !dot) {
+      setFmcsaLookupError('Enter MC or DOT number first.')
+      return
+    }
+    setFmcsaLookupError(null)
+    setFmcsaLookupLoading(true)
+    try {
+      const params = mc ? `mc=${encodeURIComponent(mc)}` : `dot=${encodeURIComponent(dot)}`
+      const res = await fetch(`/api/fmcsa-lookup?${params}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFmcsaLookupError(data.error ?? 'Lookup failed')
+        return
+      }
+      if (data.legalName) setFullName(data.legalName)
+      if (data.dotNumber) setDotNumber(data.dotNumber)
+      if (data.mcNumber && mc) setMcNumber(data.mcNumber)
+    } catch {
+      setFmcsaLookupError('Lookup failed')
+    } finally {
+      setFmcsaLookupLoading(false)
+    }
+  }
+
+  const openFmcsaSafer = () => {
+    const mc = mcNumber.trim() || dotNumber.trim() || '000000'
     window.open(`https://safer.fmcsa.dot.gov/keywordx.aspx?searchstring=${encodeURIComponent(mc)}`, '_blank', 'noopener,noreferrer')
   }
 
@@ -219,14 +248,20 @@ function LoginContent() {
                     <button
                       type="button"
                       onClick={handleFmcsaLookup}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/20"
-                      title="Look up on FMCSA Safer"
+                      disabled={fmcsaLookupLoading}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                      title="Look up carrier and auto-fill name / DOT"
                     >
-                      <Search className="h-4 w-4" />
-                      Look up
+                      {fmcsaLookupLoading ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                      {fmcsaLookupLoading ? 'Looking up…' : 'Look up'}
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-[#525252]">FMCSA lookup opens in a new tab. API auto-fill coming soon.</p>
+                  {fmcsaLookupError && <p className="mt-1 text-xs text-red-400">{fmcsaLookupError}</p>}
+                  <p className="mt-1 text-xs text-[#525252]">Look up auto-fills legal name and DOT. <button type="button" onClick={openFmcsaSafer} className="text-primary hover:underline">Open in FMCSA Safer</button></p>
                 </div>
                 <div>
                   <label htmlFor="dotNumber" className="block text-label-lg font-medium text-[#A3A3A3]">

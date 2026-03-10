@@ -6,6 +6,7 @@ import {
   buildCarrierInviteEmail,
   buildBrokerInviteEmail,
 } from '@/lib/email-templates'
+import { getLogoAttachment } from '@/lib/email-logo'
 import { randomUUID } from 'crypto'
 
 const FROM_EMAIL = 'info@getironfreight.com'
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
 
     const fullName = typeof body.full_name === 'string' ? body.full_name.trim() || null : null
     const siteUrl = getSiteUrl()
+    const logo = getLogoAttachment()
 
     if (body.type === 'staff') {
       const staffRole = body.staff_role && ['admin', 'billing', 'support'].includes(body.staff_role) ? body.staff_role : 'admin'
@@ -69,12 +71,11 @@ export async function POST(request: Request) {
       }
 
       const inviteLink = `${siteUrl}/admin/login?invite=${inviteToken}`
-      const { subject, html, text } = buildInternalInviteEmail({
-        recipientName: fullName,
-        role: staffRole,
-        inviteUrl: inviteLink,
-      })
-      await sendEmail({ to: email, subject, html, text })
+      const { subject, html, text } = buildInternalInviteEmail(
+        { recipientName: fullName, role: staffRole, inviteUrl: inviteLink },
+        { logoSrc: logo?.logoSrc }
+      )
+      await sendEmail({ to: email, subject, html, text, attachments: logo ? [logo.attachment] : undefined })
       return NextResponse.json({ ok: true, message: 'Invite sent' })
     }
 
@@ -102,12 +103,11 @@ export async function POST(request: Request) {
       const { data: carrier } = await supabase.from('carriers').select('legal_name').eq('id', carrierId).single()
       const carrierName = carrier?.legal_name ?? 'Your Carrier'
       const inviteLink = `${siteUrl}/login?invite=${inviteToken}&type=carrier`
-      const { subject, html, text } = buildCarrierInviteEmail({
-        recipientName: fullName,
-        carrierName,
-        inviteUrl: inviteLink,
-      })
-      await sendEmail({ to: email, subject, html, text })
+      const { subject, html, text } = buildCarrierInviteEmail(
+        { recipientName: fullName, carrierName, inviteUrl: inviteLink },
+        { logoSrc: logo?.logoSrc }
+      )
+      await sendEmail({ to: email, subject, html, text, attachments: logo ? [logo.attachment] : undefined })
       return NextResponse.json({ ok: true, message: 'Invite sent' })
     }
 
@@ -131,12 +131,11 @@ export async function POST(request: Request) {
       const inviteLink = `${siteUrl}/login?invite=${inviteToken}&type=broker`
       const { data: inviterProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       const brokerageName = inviterProfile?.full_name?.trim() || 'Our Broker Desk'
-      const { subject, html, text } = buildBrokerInviteEmail({
-        recipientName: fullName,
-        brokerageName,
-        inviteUrl: inviteLink,
-      })
-      await sendEmail({ to: email, subject, html, text })
+      const { subject, html, text } = buildBrokerInviteEmail(
+        { recipientName: fullName, brokerageName, inviteUrl: inviteLink },
+        { logoSrc: logo?.logoSrc }
+      )
+      await sendEmail({ to: email, subject, html, text, attachments: logo ? [logo.attachment] : undefined })
       return NextResponse.json({ ok: true, message: 'Invite sent' })
     }
 
@@ -152,6 +151,7 @@ async function sendEmail(params: {
   subject: string
   html: string
   text: string
+  attachments?: { content: string; filename: string; type: string; disposition: 'inline'; content_id: string }[]
 }) {
   const apiKey = process.env.SENDGRID_API_KEY
   if (!apiKey) {
@@ -164,5 +164,6 @@ async function sendEmail(params: {
     subject: params.subject,
     text: params.text,
     html: params.html,
+    attachments: params.attachments,
   })
 }
