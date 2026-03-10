@@ -26,20 +26,27 @@ export const EMAIL = {
   CTA_TEXT: '#0A0A0B',
 } as const
 
-/** Base URL for absolute links (logo, etc.). Prefer NEXT_PUBLIC_SITE_URL, fallback VERCEL_URL or localhost. */
+/** Production domain for emails (logo, links). Never use localhost in sent emails. */
+const PRODUCTION_SITE = 'https://getironfreight.com'
+
+/** Base URL for absolute links (logo, etc.). Prefer NEXT_PUBLIC_SITE_URL, then VERCEL_URL; in production never use localhost. */
 export function getLogoUrl(): string {
   const base =
     process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production' ? PRODUCTION_SITE : 'http://localhost:3000')
   return `${base.replace(/\/$/, '')}/icons/icon-192.png`
 }
 
-/** Inline logo as base64 data URL so it displays in email without external fetch (avoids broken image). */
+/** Inline logo as base64 data URL so it displays in email without external fetch (avoids broken image in Outlook). */
 export function getLogoDataUrl(): string {
-  const candidates = [
-    join(process.cwd(), 'public', 'icons', 'icon-192.png'),
-    join(_dir, '..', '..', '..', 'public', 'icons', 'icon-192.png'),
-  ]
+  const cwd = typeof process !== 'undefined' ? process.cwd() : ''
+  const candidates = cwd
+    ? [
+        join(cwd, 'public', 'icons', 'icon-192.png'),
+        join(_dir, '..', '..', '..', 'public', 'icons', 'icon-192.png'),
+      ]
+    : []
   for (const logoPath of candidates) {
     if (existsSync(logoPath)) {
       try {

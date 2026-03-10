@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import sgMail from '@sendgrid/mail'
 import { buildQuoteEmail, type QuoteRole } from '@/lib/email-templates'
+import { getSubscribeUrl } from '@/lib/stripe-prices'
 
 const FROM_EMAIL = 'billing@getironfreight.com'
 const FROM_NAME = 'IronFreight'
@@ -8,7 +9,7 @@ const FROM_NAME = 'IronFreight'
 function getSiteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://getironfreight.com')
   )
 }
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const to = typeof body.to === 'string' ? body.to.trim().toLowerCase() : ''
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     const role = typeof body.role === 'string' && VALID_ROLES.includes(body.role as QuoteRole) ? (body.role as QuoteRole) : null
-    const ctaUrl = typeof body.ctaUrl === 'string' && body.ctaUrl.startsWith('http') ? body.ctaUrl : `${getSiteUrl()}/login`
+    const customCtaUrl = typeof body.ctaUrl === 'string' && body.ctaUrl.startsWith('http') ? body.ctaUrl : null
 
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       return NextResponse.json({ error: 'Valid "to" email is required' }, { status: 400 })
@@ -37,10 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '"role" must be one of: broker, carrier, shipper' }, { status: 400 })
     }
 
+    const monthlySubscribeUrl = getSubscribeUrl(role, 'monthly')
+    const yearlySubscribeUrl = getSubscribeUrl(role, 'yearly')
     const { subject, html, text } = buildQuoteEmail({
       name: name || 'there',
       role,
-      ctaUrl,
+      ctaUrl: customCtaUrl ?? `${getSiteUrl()}/login`,
+      monthlySubscribeUrl,
+      yearlySubscribeUrl,
     })
 
     sgMail.setApiKey(apiKey)
@@ -50,6 +55,10 @@ export async function POST(request: Request) {
       subject,
       html,
       text,
+      headers: {
+        'List-Unsubscribe': '<mailto:Billing@getironfreight.com?subject=Unsubscribe%20quote%20emails>',
+        'X-Entity-Ref-ID': 'ironfreight-quote',
+      },
     })
 
     return NextResponse.json({ ok: true, message: 'Quote email sent' })

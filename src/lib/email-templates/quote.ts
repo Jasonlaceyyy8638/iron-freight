@@ -65,24 +65,32 @@ const QUOTE_CONFIG: Record<
 export function buildQuoteEmail(params: {
   name: string
   role: QuoteRole
-  ctaUrl: string
+  /** Single CTA URL (used when monthly/yearly not provided) */
+  ctaUrl?: string
+  /** Subscribe monthly URL – when set with yearlyUrl, shows "Pay monthly" / "Pay yearly" buttons to Stripe */
+  monthlySubscribeUrl?: string
+  /** Subscribe yearly URL */
+  yearlySubscribeUrl?: string
 }): { subject: string; html: string; text: string } {
-  const { name, role, ctaUrl } = params
+  const { name, role, ctaUrl, monthlySubscribeUrl, yearlySubscribeUrl } = params
   const config = QUOTE_CONFIG[role]
   const greeting = `Hello ${name},`
+  const useSubscribeButtons = Boolean(monthlySubscribeUrl && yearlySubscribeUrl)
 
   const bodyHtml = `
     <p style="margin: 0 0 16px;">${greeting}</p>
     <p style="margin: 0 0 16px;">${config.bodyIntro}</p>
     ${config.pricingHtml}
-    <p style="margin: 0 0 8px; color: ${EMAIL.TEXT_MUTED}; font-size: 14px;">Use the button below to take the next step.</p>
+    <p style="margin: 0 0 8px; color: ${EMAIL.TEXT_MUTED}; font-size: 14px;">${useSubscribeButtons ? 'Choose your plan below to get started.' : 'Use the button below to take the next step.'}</p>
   `.trim()
 
   const html = buildEmailLayout({
     preheader: config.preheader,
     bodyHtml,
-    ctaLabel: config.ctaLabel,
-    ctaUrl,
+    ctaLabel: useSubscribeButtons ? undefined : config.ctaLabel,
+    ctaUrl: useSubscribeButtons ? undefined : ctaUrl,
+    monthlyUrl: monthlySubscribeUrl,
+    yearlyUrl: yearlySubscribeUrl,
     backgroundColor: BG_DARK,
   })
 
@@ -92,6 +100,9 @@ export function buildQuoteEmail(params: {
     shipper: 'Monthly: $79/mo per location (unlimited QR scans, geofenced logs, driver ID verification). Annual: $790/year — 2 months free (pay for 10, get 12).',
   }
 
+  const ctaLines = useSubscribeButtons
+    ? [`Pay monthly: ${monthlySubscribeUrl}`, `Pay yearly (save 2 months): ${yearlySubscribeUrl}`]
+    : [config.ctaLabel + ':', ctaUrl || '']
   const text = [
     greeting,
     '',
@@ -100,8 +111,7 @@ export function buildQuoteEmail(params: {
     'Current Pricing Structure:',
     pricingText[role],
     '',
-    config.ctaLabel + ':',
-    ctaUrl,
+    ...ctaLines,
     '',
     getEmailFooterText(),
   ].join('\n')

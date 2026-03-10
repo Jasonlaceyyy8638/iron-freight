@@ -14,6 +14,10 @@ export type EmailLayoutParams = {
   ctaLabel?: string
   /** CTA button URL (optional – omit for no button) */
   ctaUrl?: string
+  /** Optional second CTA: Pay monthly (Stripe subscribe monthly) */
+  monthlyUrl?: string
+  /** Optional second CTA: Pay yearly (Stripe subscribe yearly); when both monthlyUrl and yearlyUrl are set, show two buttons */
+  yearlyUrl?: string
   /** Optional custom footer HTML; defaults to common footer */
   footerHtml?: string
   /** Optional background color */
@@ -23,11 +27,12 @@ export type EmailLayoutParams = {
 }
 
 export function buildEmailLayout(params: EmailLayoutParams): string {
-  const { preheader, bodyHtml, ctaLabel, ctaUrl, footerHtml, backgroundColor, logoSrc } = params
+  const { preheader, bodyHtml, ctaLabel, ctaUrl, monthlyUrl, yearlyUrl, footerHtml, backgroundColor, logoSrc } = params
   const footer = footerHtml ?? getEmailFooterHtml()
   const bg = backgroundColor ?? EMAIL.BG_DARK
   const logoUrl = logoSrc ?? getLogoDataUrl()
-  const hasCta = Boolean(ctaLabel && ctaUrl)
+  const hasSingleCta = Boolean(ctaLabel && ctaUrl)
+  const hasSubscribeCtas = Boolean(monthlyUrl && yearlyUrl)
 
   return `
 <!DOCTYPE html>
@@ -62,7 +67,13 @@ export function buildEmailLayout(params: EmailLayoutParams): string {
               ${bodyHtml}
             </td>
           </tr>
-          ${hasCta ? `<!-- CTA -->
+          ${hasSubscribeCtas ? `<!-- CTA: Monthly / Yearly -->
+          <tr>
+            <td style="padding: 16px 0 40px;">
+              <a href="${monthlyUrl}" style="display: inline-block; background-color:${EMAIL.BRAND}; color:${EMAIL.CTA_TEXT}; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 6px; letter-spacing: 0.02em; margin-right: 12px;">Pay monthly</a>
+              <a href="${yearlyUrl}" style="display: inline-block; background-color: transparent; color:${EMAIL.BRAND}; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 6px; border: 2px solid ${EMAIL.BRAND}; letter-spacing: 0.02em;">Pay yearly (save 2 months)</a>
+            </td>
+          </tr>` : hasSingleCta ? `<!-- CTA -->
           <tr>
             <td style="padding: 16px 0 40px;">
               <a href="${ctaUrl}" style="display: inline-block; background-color:${EMAIL.BRAND}; color:${EMAIL.CTA_TEXT}; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 6px; letter-spacing: 0.02em;">${ctaLabel}</a>
