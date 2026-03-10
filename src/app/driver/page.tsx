@@ -150,7 +150,6 @@ export default function DriverIronGatePage() {
       try {
         const wl = await (navigator as unknown as { wakeLock: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock.request('screen')
         wakeLockRef.current = wl
-        wl.addEventListener?.('release', () => { wakeLockRef.current = null })
       } catch {
         wakeLockRef.current = null
       }

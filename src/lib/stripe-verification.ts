@@ -8,6 +8,28 @@ import { getStripe } from './stripe'
 const VERIFICATION_CHARGE_CENTS = 1000 // $10
 const CURRENCY = 'usd'
 
+/** Report usage to a metered subscription item (Stripe REST API; SDK removed createUsageRecord in v18+). */
+async function createUsageRecord(subscriptionItemId: string, quantity: number, timestamp: number): Promise<void> {
+  const secretKey = process.env.STRIPE_SECRET_KEY
+  if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not set')
+  const body = new URLSearchParams({
+    quantity: String(quantity),
+    timestamp: String(timestamp),
+  })
+  const res = await fetch(`https://api.stripe.com/v1/subscription_items/${subscriptionItemId}/usage_records`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: body.toString(),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(err || `Stripe API ${res.status}`)
+  }
+}
+
 export async function reportVerificationCharge(params: {
   /** When set, report usage to this subscription item → broker gets a monthly invoice for verification charges. */
   stripeVerificationSubscriptionItemId?: string | null
@@ -19,10 +41,11 @@ export async function reportVerificationCharge(params: {
 
   if (params.stripeVerificationSubscriptionItemId) {
     try {
-      await stripe.subscriptionItems.createUsageRecord(params.stripeVerificationSubscriptionItemId, {
-        quantity: 1,
-        timestamp: Math.floor(Date.now() / 1000),
-      })
+      await createUsageRecord(
+        params.stripeVerificationSubscriptionItemId,
+        1,
+        Math.floor(Date.now() / 1000)
+      )
       return { ok: true }
     } catch (err) {
       console.error('Stripe verification usage record error:', err)

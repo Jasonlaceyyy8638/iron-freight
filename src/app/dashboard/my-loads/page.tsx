@@ -69,6 +69,7 @@ function TrackDriverMap({
     if (!supabase || !load.id) return
     let cancelled = false
     async function poll() {
+      if (!supabase) return
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       if (!token || cancelled) return
