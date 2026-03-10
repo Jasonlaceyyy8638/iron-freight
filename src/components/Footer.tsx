@@ -28,6 +28,9 @@ export function Footer() {
             <p className="max-w-[280px] text-[13px] leading-relaxed text-white/70">
               The ironclad shield against double brokering, fraud, and load theft—with verified chain of custody, identity verification, and geofenced pickup and delivery.
             </p>
+            <Link href="/investors" className="text-[13px] font-medium text-[#C1FF00] hover:underline">
+              For Investors →
+            </Link>
             <p className="text-[12px] text-white/50">
               © 2026 IronFreight. All Rights Reserved.
             </p>
