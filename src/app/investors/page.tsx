@@ -125,10 +125,11 @@ function InvestorVideo() {
       <a
         href={videoSrc}
         download="IronFreight-investor-overview.mp4"
-        className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+        aria-label="Download investor overview video"
+        title="Download"
+        className="mt-3 inline-flex items-center text-primary hover:text-primary/80"
       >
         <Download className="h-4 w-4 shrink-0" aria-hidden />
-        Download video
       </a>
     </div>
   )

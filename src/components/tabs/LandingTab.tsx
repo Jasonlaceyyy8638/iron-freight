@@ -202,10 +202,11 @@ export function LandingTab() {
             <a
               href="/ironfreight-explainer.mp4"
               download="IronFreight-explainer.mp4"
-              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+              aria-label="Download home page video"
+              title="Download"
+              className="mt-3 inline-flex items-center text-primary hover:text-primary/80"
             >
               <Download className="h-4 w-4 shrink-0" aria-hidden />
-              Download video
             </a>
           </div>
         </div>

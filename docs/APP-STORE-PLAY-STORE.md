@@ -1,15 +1,46 @@
-# Publishing the IronFreight Driver App to Apple App Store & Google Play
+# Publishing IronFreight to App Store & Google Play
 
-This guide covers how to get the driver experience (and optionally the full app) onto the **Apple App Store** and **Google Play Store**. Your driver app is currently a web app (Next.js routes under `/driver`); both stores require a **native wrapper** around that web content.
+This guide covers how to get **IronFreight** onto the **Apple App Store** and **Google Play**. The app serves **drivers** (loads, IronGate QR) and **shippers** (Gate – scan driver QR at the dock), plus brokers and carriers. Both stores require a **native wrapper** around your existing web app (Next.js).
+
+---
+
+## One app for drivers and shippers (role-based)
+
+You do **not** need separate “Driver app” and “Shipper app” listings. Use **one app** that shows the right experience after sign-in:
+
+| Role    | What they see in the app |
+|--------|---------------------------|
+| **Driver**  | `/driver` – assigned loads, IronGate QR to show at the dock |
+| **Shipper** | Dashboard with **Gate** tab – enter load number, scan driver’s QR with camera |
+| **Broker**  | Dashboard – Load Board, My Loads, Fleet (no Gate tab) |
+| **Carrier** | Dashboard – My Loads, Fleet, driver assignment |
+
+**Flow:** User opens the app → lands on your site (e.g. home or login). They sign in. Your app already redirects by role: drivers go to `/driver`, everyone else to `/dashboard`. Shippers and brokers see the **Gate** tab; shippers use it to scan the driver’s QR. One codebase, one app listing, one update process.
+
+If you ever want separate store listings (e.g. “IronFreight Driver” and “IronFreight Gate”), you can build two Capacitor apps pointing at different start URLs (`/driver` vs `/dashboard/gate`); for most cases, one app is simpler.
+
+---
+
+## Preparation checklist
+
+Use this to get ready before submitting:
+
+- [ ] **Store accounts** – Apple Developer ($99/year), Google Play Developer ($25 one-time).
+- [ ] **Native wrapper** – Use **Capacitor** for both iOS and Android (recommended).
+- [ ] **App entry** – Decide: open at **root/login** (role-based after sign-in) or a specific path (e.g. `/driver` only).
+- [ ] **Icons & splash** – Use `public/icons/icon-192.png` and `icon-512.png`; generate all required sizes per platform; add splash screen.
+- [ ] **Privacy policy** – Host at e.g. `https://yoursite.com/privacy` and use that URL in both stores.
+- [ ] **Screenshots** – Phone (and tablet if needed) for both stores; show driver and/or Gate flow so reviewers see the value.
+- [ ] **Description** – Mention drivers (loads, QR at dock) and shippers (scan QR at gate); clarifies it’s one app for the freight verification workflow.
 
 ---
 
 ## Overview
 
-| Store | Best approach | Notes |
-|-------|----------------|--------|
-| **Google Play** | Capacitor or TWA (Trusted Web Activity) | TWA = minimal Chrome shell; Capacitor = same as iOS, one workflow. |
-| **Apple App Store** | Capacitor (or similar native wrapper) | Apple does not accept “website-only” apps; you need a native shell. |
+| Store        | Best approach | Notes |
+|-------------|----------------|--------|
+| **Google Play** | Capacitor or TWA | TWA = minimal Chrome shell; Capacitor = same as iOS, one workflow. |
+| **Apple App Store** | Capacitor | Apple does not accept “website-only” apps; you need a native shell. |
 
 **Recommended:** Use **Capacitor** for **both** stores so you have one workflow, one codebase, and consistent behavior on iOS and Android.
 
@@ -19,7 +50,7 @@ This guide covers how to get the driver experience (and optionally the full app)
 
 1. **Apple Developer Program** – [developer.apple.com](https://developer.apple.com) – **$99/year** (required for App Store).
 2. **Google Play Developer** – [play.google.com/console](https://play.google.com/console) – **$25 one-time** (required for Play Store).
-3. **App assets** – Icons (you have these), splash screen, screenshots for each device size, privacy policy URL, short description, full description.
+3. **App assets** – Icons (e.g. `public/icons/icon-192.png`, `icon-512.png`), splash screen, screenshots for each device size, privacy policy URL, short and full description.
 
 ---
 
@@ -36,22 +67,19 @@ npm install @capacitor/core @capacitor/cli
 npx cap init "IronFreight" "com.getironfreight.app"
 ```
 
-- **App name:** IronFreight (or “IronFreight Driver” if you want a driver-only store listing).
-- **App ID:** Use the same as your desktop app, e.g. `com.getironfreight.app`, or a distinct one for the mobile app (e.g. `com.getironfreight.driver`).
+- **App name:** IronFreight.
+- **App ID:** e.g. `com.getironfreight.app` (or `com.getironfreight.driver` if you later do a driver-only variant).
 
-### 2. Point Capacitor at your built web app
+### 2. Point Capacitor at your web app
 
-Capacitor needs the **built** output (HTML/JS/CSS), not the Next.js source.
-
-- **If the app is hosted (e.g. Netlify):** You can point the native app to your live URL so it loads the site in a WebView (simplest; no need to bundle the Next.js build into the app).
-- **If you want the app to work offline:** Build Next.js and copy the export into the Capacitor web folder so Capacitor bundles it.
+Capacitor needs either a **live URL** or the **built** output of your site.
 
 **Using a live URL (simplest):**
 
-- In `capacitor.config.ts` (or `capacitor.config.json`), set `server.url` to your production URL, e.g. `https://getironfreight.com`, and optionally set `server.cleartext` for dev if needed.
-- For a **driver-only** experience, you can set the app to open a specific path, e.g. `https://getironfreight.com/driver`, by configuring the start URL in the WebView or in the app’s initial route.
+- In `capacitor.config.ts` (or `capacitor.config.json`), set `server.url` to your production URL, e.g. `https://getironfreight.com`.
+- The app will load your site in a WebView. Users open the app → see your site (e.g. login or home) → sign in → get redirected by role (driver → `/driver`, shipper/broker/carrier → `/dashboard`). No need to bundle the Next.js build.
 
-**Using a bundled build:**
+**Using a bundled build (offline-capable):**
 
 ```bash
 npm run build
@@ -59,12 +87,12 @@ npx cap add android
 npx cap add ios
 ```
 
-Then set your build output directory in `capacitor.config.*` so that `webDir` points to your Next.js export (e.g. `out` if you use `output: 'export'`, or the built assets folder you copy to `www`).
+Set `webDir` in `capacitor.config.*` to your Next.js export (e.g. `out` if you use `output: 'export'`, or a folder you copy built assets into). Then the app can work offline.
 
 ### 3. Icons and splash
 
-- Use your existing app icons (e.g. `public/icons/icon-192.png`, `icon-512.png`).
-- Generate all required sizes (e.g. with [app-icon.co](https://app-icon.co) or Capacitor’s asset generator). Place them in the native projects (e.g. `android/app/src/main/res/`, iOS `App/App/Assets.xcassets/`).
+- Use your existing app icons (`public/icons/icon-192.png`, `icon-512.png`).
+- Generate all required sizes (e.g. [app-icon.co](https://app-icon.co) or Capacitor’s asset generator). Place them in the native projects (e.g. `android/app/src/main/res/`, iOS `App/App/Assets.xcassets/`).
 - Add a splash screen for both platforms (required by stores).
 
 ### 4. Build and submit
@@ -76,7 +104,7 @@ npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
 
-- Sign the release APK/AAB (Google Play expects AAB). Use a keystore and set `signingConfigs` in `android/app/build.gradle`.
+- Sign the release AAB (Google Play expects AAB). Use a keystore and set `signingConfigs` in `android/app/build.gradle`.
 - Upload the AAB in [Google Play Console](https://play.google.com/console) → your app → Production (or internal testing).
 
 **iOS (App Store):**
@@ -87,15 +115,17 @@ npx cap sync ios
 
 - Open `ios/App/App.xcworkspace` in **Xcode** (on a Mac).
 - Select your Apple Developer team, set bundle ID and version.
-- Archive: **Product → Archive**, then **Distribute App** → App Store Connect.
+- **Product → Archive**, then **Distribute App** → App Store Connect.
 - In [App Store Connect](https://appstoreconnect.apple.com), complete the listing (screenshots, description, privacy policy, etc.) and submit for review.
 
-### 5. Driver-specific start URL
+### 5. Optional: open directly at a specific path
 
-If you want the store app to open directly to the driver flow:
+If you want the app to open at a specific path (e.g. `/driver` or `/login`):
 
-- **URL approach:** Set `server.url` (or the initial load URL in code) to `https://getironfreight.com/driver` so the app opens on the driver section.
-- **Bundled approach:** If you bundle the web app, build it so the default route or redirect goes to `/driver`.
+- **Live URL:** Set the initial load URL to e.g. `https://getironfreight.com/driver` or `https://getironfreight.com/login` in your Capacitor config or in the native app’s start URL.
+- **Bundled:** Configure your app’s default route or redirect so it lands on that path.
+
+For a **single role-based app**, opening at **root** or **/login** is usually best so drivers and shippers both sign in and then see the correct screen.
 
 ---
 
@@ -105,11 +135,10 @@ If you want a **minimal** Android app that is basically your PWA in a Chrome-bas
 
 1. Use **PWABuilder** – [pwabuilder.com](https://www.pwabuilder.com) – enter your site URL (e.g. `https://getironfreight.com`).
 2. Generate the Android project (TWA). Download the package.
-3. Configure **Digital Asset Links** on your domain so the TWA can run in full-screen without the URL bar:
-   - Host `/.well-known/assetlinks.json` on `https://getironfreight.com` with the fingerprint of the signing key used for the TWA. Google’s docs describe the exact format.
+3. Configure **Digital Asset Links** on your domain: host `/.well-known/assetlinks.json` with the fingerprint of the signing key. Google’s docs describe the format.
 4. Build the signed AAB/APK and upload to Google Play Console.
 
-**Limitation:** This only gives you an Android app. For the **Apple App Store** you still need a native wrapper (e.g. Capacitor) or a separate iOS project.
+**Limitation:** This only gives you an Android app. For the **Apple App Store** you still need a native wrapper (e.g. Capacitor).
 
 ---
 
@@ -117,11 +146,11 @@ If you want a **minimal** Android app that is basically your PWA in a Chrome-bas
 
 Use this for both stores:
 
-- [ ] **App name** – e.g. “IronFreight” or “IronFreight Driver”.
+- [ ] **App name** – e.g. “IronFreight”.
 - [ ] **Short description** (Play) / **Subtitle** (App Store).
-- [ ] **Full description** – what the app does, who it’s for (e.g. drivers, carriers, brokers).
+- [ ] **Full description** – what the app does: drivers view loads and show IronGate QR at the dock; shippers scan the driver’s QR at the gate; brokers and carriers manage loads and fleet. One app for the whole verification workflow.
 - [ ] **Icons** – 192px and 512px (you have these); generate all required sizes for each platform.
-- [ ] **Screenshots** – phone and tablet for both stores (required sizes in Play Console and App Store Connect).
+- [ ] **Screenshots** – phone and tablet as required (Play Console and App Store Connect).
 - [ ] **Privacy policy URL** – e.g. `https://getironfreight.com/privacy`.
 - [ ] **Category** – e.g. Business or Productivity.
 - [ ] **Contact / support** – email (e.g. support@getironfreight.com).
@@ -130,15 +159,15 @@ Use this for both stores:
 
 ## Apple App Store notes
 
-- **Guideline 4.2** – Apple may reject apps that look like “repackaged websites” with no native value. Your app adds value (driver verification, load assignment, QR, etc.), so describe that clearly in the listing and in **App Review notes**: e.g. “Driver app for freight verification and load assignment; uses native WebView for secure, authenticated experience.”
-- **Signing & provisioning** – Use Xcode with your Apple Developer account; create an App ID and provisioning profile for the app.
-- **TestFlight** – Use TestFlight for beta testing before submitting to the store.
+- **Guideline 4.2** – Apple may reject apps that look like “repackaged websites” with no native value. Your app adds value (driver verification, load assignment, QR at dock, shipper gate scanning), so describe that clearly in the listing and in **App Review notes**: e.g. “Freight verification app for drivers and shippers: drivers view assigned loads and show a secure QR at the dock; shippers scan the driver’s QR at the gate to verify identity. Uses a native WebView for the authenticated experience.”
+- **Signing & provisioning** – Use Xcode with your Apple Developer account; create an App ID and provisioning profile.
+- **TestFlight** – Use TestFlight for beta testing before submitting.
 
 ---
 
 ## Google Play notes
 
-- **App signing** – Play Console can manage signing for you (recommended). You upload an upload key; Google signs the final AAB for distribution.
+- **App signing** – Play Console can manage signing for you (recommended). You upload an upload key; Google signs the final AAB.
 - **Content rating** – Complete the questionnaire in Play Console.
 - **Data safety** – Declare what data you collect (e.g. email, location if used) and how it’s used.
 
@@ -148,8 +177,9 @@ Use this for both stores:
 
 | Goal | Action |
 |------|--------|
-| **Both stores with one workflow** | Use **Capacitor** for iOS and Android. |
-| **Driver-only app** | Point the app at `https://getironfreight.com/driver` or bundle with that as the start route. |
-| **Android-only, minimal** | Use **PWABuilder** TWA for Android; use Capacitor (or similar) for iOS when you’re ready. |
+| **One app for drivers and shippers** | Use one Capacitor app; open at root/login; role after sign-in decides driver vs dashboard (Gate for shippers). |
+| **Both stores, one workflow** | Use **Capacitor** for iOS and Android. |
+| **Driver-only or Gate-only listing** | Optional: build a second app pointing at `/driver` or `/dashboard/gate` if you want separate store listings. |
+| **Android-only, minimal** | Use **PWABuilder** TWA for Android; use Capacitor for iOS when ready. |
 
-If you tell me whether you prefer “live URL” (always load from getironfreight.com) or “bundled” (offline-capable), I can outline exact `capacitor.config.*` and build steps for your repo.
+If you prefer “live URL” (always load from your domain) or “bundled” (offline-capable), I can outline exact `capacitor.config.*` and build steps for your repo.
